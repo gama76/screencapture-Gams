@@ -402,6 +402,8 @@ class EditorState:
     crop_start: tuple[int, int] | None = None
     crop_rect: int | None = None
     last_draw_point: tuple[int, int] | None = None
+    undo_stack: list[tuple[Image.Image, str]] | None = None
+    drawing_snapshot_saved: bool = False
 
 
 class ImageEditor(Toplevel):
@@ -412,6 +414,7 @@ class ImageEditor(Toplevel):
         self.minsize(720, 560)
         self.on_saved = on_saved
         self.state = EditorState(Image.open(image_path).convert("RGB"), image_path)
+        self.state.undo_stack = []
         self.brush_size = StringVar(value="6")
         self.marker_number = StringVar(value="1")
         self.icon_size = StringVar(value="6")
@@ -454,6 +457,7 @@ class ImageEditor(Toplevel):
         self.icon_button(toolbar, "Copier", "copy", self.copy_current_image).grid(row=1, column=5, padx=2, pady=(6, 2))
         self.icon_button(toolbar, "Copie", "save_copy", self.save_copy).grid(row=1, column=6, padx=2, pady=(6, 2))
         self.icon_button(toolbar, "Sauver", "save", self.save, style="Accent.TButton").grid(row=1, column=7, sticky=W, padx=2, pady=(6, 2))
+        ttk.Button(toolbar, text="Annuler", command=self.undo).grid(row=3, column=5, padx=2, pady=(6, 2))
 
         ttk.Label(toolbar, text="Logos", style="Title.TLabel").grid(row=2, column=0, sticky=W, padx=(0, 10), pady=(6, 0))
         self.icon_button(toolbar, "Numero", "number", lambda: self.set_mode("number")).grid(row=2, column=1, padx=2, pady=(6, 2))
@@ -474,6 +478,8 @@ class ImageEditor(Toplevel):
         self.canvas.bind("<B1-Motion>", self.on_drag)
         self.canvas.bind("<ButtonRelease-1>", self.on_release)
         self.bind("<Configure>", lambda _event: self.render())
+        self.bind("<Control-z>", self.undo)
+        self.bind("<Control-Z>", self.undo)
         self.update_color_preview()
         self.render()
 
@@ -596,7 +602,29 @@ class ImageEditor(Toplevel):
         self.editor_color_preview.delete("all")
         self.editor_color_preview.create_rectangle(2, 2, 26, 20, fill=self.tool_color.get(), outline=self.tool_color.get())
 
+    def push_undo(self) -> None:
+        if self.state.undo_stack is None:
+            self.state.undo_stack = []
+        self.state.undo_stack.append((self.state.image.copy(), self.marker_number.get()))
+        if len(self.state.undo_stack) > 30:
+            self.state.undo_stack.pop(0)
+
+    def undo(self, _event=None) -> str:
+        if not self.state.undo_stack:
+            self.status.set("Aucune action a annuler")
+            return "break"
+        self.state.image, marker_number = self.state.undo_stack.pop()
+        self.marker_number.set(marker_number)
+        self.state.crop_start = None
+        self.state.crop_rect = None
+        self.state.last_draw_point = None
+        self.state.drawing_snapshot_saved = False
+        self.status.set("Action annulee")
+        self.render()
+        return "break"
+
     def transform(self, action: str) -> None:
+        self.push_undo()
         if action == "rotate_left":
             self.state.image = self.state.image.rotate(90, expand=True)
         elif action == "rotate_right":
@@ -642,6 +670,7 @@ class ImageEditor(Toplevel):
             self.place_marker(point)
         else:
             self.state.last_draw_point = point
+            self.state.drawing_snapshot_saved = False
 
     def marker_size(self) -> int:
         try:
@@ -663,6 +692,7 @@ class ImageEditor(Toplevel):
         mode = self.state.mode
         size = self.marker_size()
         color = hex_to_rgb(self.tool_color.get())
+        self.push_undo()
         if mode == "number":
             marker = self.create_number_marker(size, color, self.next_marker_number())
         elif mode == "warning":
@@ -785,6 +815,9 @@ class ImageEditor(Toplevel):
                 width=2,
             )
         elif self.state.mode == "draw" and self.state.last_draw_point:
+            if not self.state.drawing_snapshot_saved:
+                self.push_undo()
+                self.state.drawing_snapshot_saved = True
             draw = ImageDraw.Draw(self.state.image)
             size = max(1, int(self.brush_size.get() or 1))
             draw.line([self.state.last_draw_point, point], fill=hex_to_rgb(self.tool_color.get()), width=size)
@@ -797,6 +830,7 @@ class ImageEditor(Toplevel):
             x_values = sorted((self.state.crop_start[0], end[0]))
             y_values = sorted((self.state.crop_start[1], end[1]))
             if x_values[1] - x_values[0] > 10 and y_values[1] - y_values[0] > 10:
+                self.push_undo()
                 if self.state.mode == "crop":
                     self.state.image = self.state.image.crop((x_values[0], y_values[0], x_values[1], y_values[1]))
                     self.status.set("Image recadree")
@@ -813,6 +847,7 @@ class ImageEditor(Toplevel):
             self.state.crop_rect = None
             self.render()
         self.state.last_draw_point = None
+        self.state.drawing_snapshot_saved = False
 
     def render(self) -> None:
         if not self.canvas.winfo_exists():

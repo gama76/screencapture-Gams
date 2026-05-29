@@ -15,6 +15,7 @@ Application Windows avec interface graphique pour capturer, organiser et annoter
 - Copie d'une image dans le presse-papiers Windows
 - Suppression d'une image depuis l'historique avec confirmation
 - Edition: dessin, cadres colores, recadrage, rotation, miroir, niveaux de gris
+- Annulation dans l'editeur avec `Ctrl+Z`
 - Logos d'annotation: numero, warning, interdit, info, valide
 - Logos rendus avec anti-aliasing pour des bords plus propres
 
@@ -87,6 +88,7 @@ Outils disponibles:
 - `Trait`: epaisseur du dessin ou du cadre
 - `Taille logo`: taille des logos d'annotation
 - `N`: compteur utilise uniquement par l'outil `Numero`
+- `Annuler` ou `Ctrl+Z`: annule la derniere action de modification
 
 Logos disponibles:
 

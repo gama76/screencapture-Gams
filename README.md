@@ -1,33 +1,37 @@
 # Gestionnaire de screenshots
 
-Application Python avec interface graphique pour capturer des screenshots dans un dossier configurable.
+Application Windows avec interface graphique pour capturer, organiser et annoter des screenshots.
 
 ## Fonctionnalites
 
+- Capture PNG horodatee
+- Capture de tout l'ecran ou d'une zone selectionnee
 - Raccourci global configurable, par defaut `Ctrl+Shift+S`
 - Dossier de sortie configurable
-- Captures PNG horodatees
-- Capture de tout l'ecran ou d'une zone selectionnee
 - Couleur configurable pour le rectangle de selection de zone
 - Theme clair ou sombre, sauvegarde automatiquement
 - Historique automatique des images du dossier
 - Apercu des images
-- Copie de l'image selectionnee dans le presse-papiers
-- Edition basique: dessin, cadre colore, logos numerotes, logos de signalisation, recadrage, rotation, miroir, niveaux de gris, sauvegarde, copie fichier ou presse-papiers
+- Copie d'une image dans le presse-papiers Windows
+- Edition: dessin, cadres colores, recadrage, rotation, miroir, niveaux de gris
+- Logos d'annotation: numero, warning, interdit, info, valide
+- Logos rendus avec anti-aliasing pour des bords plus propres
 
 ## Lancement
 
-Version compilee:
+Version compilee actuelle:
 
 ```powershell
-.\dist\GestionnaireScreenshots\GestionnaireScreenshots.exe
+.\dist\GestionnaireScreenshots_v7\GestionnaireScreenshots_v7.exe
 ```
 
-Ou:
+Lanceur recommande:
 
 ```powershell
 .\lancer_exe.bat
 ```
+
+Le lanceur ouvre automatiquement la version compilee la plus recente disponible.
 
 Version Python:
 
@@ -35,33 +39,65 @@ Version Python:
 .\.venv\Scripts\python.exe screenshot_manager.py
 ```
 
-Si Pillow n'est pas installe:
+Si les dependances doivent etre reinstallees:
 
 ```powershell
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-## Raccourcis
+## Capture
 
-Entrez le raccourci sous forme texte, par exemple:
+Le mode choisi dans l'interface determine ce que fait le raccourci global:
+
+- `Ecran complet`: capture tous les ecrans
+- `Zone`: affiche une surcouche, puis sauvegarde le rectangle selectionne
+
+Les boutons `Tout l'ecran` et `Selection zone` lancent directement un type de capture sans changer le raccourci.
+
+## Configuration
+
+Parametres sauvegardes dans `config.json`:
+
+- dossier de capture
+- raccourci global
+- mode de capture
+- couleur du rectangle de selection
+- couleur par defaut de l'editeur
+- theme clair/sombre
+
+Exemples de raccourcis:
 
 - `ctrl+shift+s`
 - `alt+printscreen`
 - `ctrl+alt+f9`
 
-Cliquez ensuite sur `Appliquer`.
+Apres modification, cliquez sur `Appliquer`.
 
-Le raccourci utilise le mode choisi dans l'interface:
+## Edition
 
-- `Ecran complet` capture tous les ecrans
-- `Zone` affiche une surcouche, puis sauvegarde le rectangle selectionne
+Depuis l'historique, selectionnez une image puis cliquez sur `Modifier l'image`.
 
-Les boutons `Tout l'ecran` et `Selection zone` restent disponibles pour lancer directement un type de capture.
+Outils disponibles:
 
-La couleur du rectangle de selection se regle depuis l'ecran principal.
+- `Dessin`: tracer librement sur l'image
+- `Cadre`: tirer un rectangle colore
+- `Recadrer`: selectionner une zone a conserver
+- `Couleur`: choisir la couleur des annotations
+- `Trait`: epaisseur du dessin ou du cadre
+- `Taille logo`: taille des logos d'annotation
+- `N`: compteur utilise uniquement par l'outil `Numero`
 
-Dans l'editeur, utilisez `Couleur`, puis le mode `Dessin` ou `Cadre`. `Trait` controle l'epaisseur du dessin ou du cadre.
+Logos disponibles:
 
-Les boutons d'edition affichent maintenant un pictogramme. `Numero`, `Warning`, `Interdit`, `Info` et `Valide` placent un logo au clic sur l'image. `Taille logo` controle la taille des pictogrammes. Le champ `N` est un compteur separe utilise uniquement par `Numero`. Les logos sont rendus avec anti-aliasing pour des bords plus propres.
+- `Numero`: place un rond numerote, puis incremente `N`
+- `Warning`: place un pictogramme d'avertissement
+- `Interdit`: place un symbole interdit
+- `Info`: place un pictogramme info
+- `Valide`: place un check vert
 
-Le bouton `Copier l'image` copie l'image selectionnee dans le presse-papiers Windows. Dans l'editeur, le bouton `Copier` copie l'image modifiee en cours.
+## Presse-Papiers
+
+- `Copier l'image` copie l'image selectionnee dans l'historique
+- `Copier` dans l'editeur copie l'image en cours de modification
+
+L'image peut ensuite etre collee dans Paint, Word, Teams, Discord ou tout autre logiciel compatible.

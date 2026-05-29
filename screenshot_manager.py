@@ -40,6 +40,46 @@ APP_DIR = Path(__file__).resolve().parent
 CONFIG_PATH = APP_DIR / "config.json"
 DEFAULT_CAPTURE_DIR = APP_DIR / "screenshots"
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp"}
+THEMES = {
+    "light": {
+        "app_bg": "#eef2f6",
+        "surface": "#ffffff",
+        "surface_alt": "#f8fafc",
+        "text": "#172033",
+        "muted": "#4b5563",
+        "border": "#c6ced8",
+        "button": "#f8fafc",
+        "button_active": "#e8eef6",
+        "accent": "#2563eb",
+        "accent_active": "#1d4ed8",
+        "preview_bg": "#17191c",
+        "editor_bg": "#f4f6f8",
+        "canvas_bg": "#202124",
+        "list_bg": "#ffffff",
+        "list_fg": "#172033",
+        "select_bg": "#2563eb",
+        "select_fg": "#ffffff",
+    },
+    "dark": {
+        "app_bg": "#111827",
+        "surface": "#1f2937",
+        "surface_alt": "#273244",
+        "text": "#f3f4f6",
+        "muted": "#cbd5e1",
+        "border": "#475569",
+        "button": "#334155",
+        "button_active": "#475569",
+        "accent": "#3b82f6",
+        "accent_active": "#2563eb",
+        "preview_bg": "#0b1120",
+        "editor_bg": "#111827",
+        "canvas_bg": "#0b1120",
+        "list_bg": "#111827",
+        "list_fg": "#e5e7eb",
+        "select_bg": "#3b82f6",
+        "select_fg": "#ffffff",
+    },
+}
 
 MOD_ALT = 0x0001
 MOD_CONTROL = 0x0002
@@ -103,6 +143,7 @@ def load_config() -> dict:
         "capture_mode": "full",
         "selection_color": "#00d1ff",
         "editor_color": "#ff3030",
+        "theme": "light",
     }
 
 
@@ -247,9 +288,33 @@ def draw_centered_text(
     fill: tuple[int, int, int],
 ) -> None:
     bbox = draw.textbbox((0, 0), text, font=font)
-    width = bbox[2] - bbox[0]
-    height = bbox[3] - bbox[1]
-    draw.text((center[0] - width / 2, center[1] - height / 2 - bbox[1] / 2), text, font=font, fill=fill)
+    x = center[0] - (bbox[0] + bbox[2]) / 2
+    y = center[1] - (bbox[1] + bbox[3]) / 2
+    draw.text((x, y), text, font=font, fill=fill)
+
+
+def normalize_theme(theme: str) -> str:
+    return theme if theme in THEMES else "light"
+
+
+def apply_app_style(style: ttk.Style, theme: str) -> None:
+    palette = THEMES[normalize_theme(theme)]
+    style.configure(".", font=("Segoe UI", 10), background=palette["app_bg"], foreground=palette["text"])
+    style.configure("TFrame", background=palette["app_bg"])
+    style.configure("Surface.TFrame", background=palette["surface"], relief="flat")
+    style.configure("TLabel", background=palette["surface"], foreground=palette["text"])
+    style.configure("Title.TLabel", background=palette["surface"], foreground=palette["text"], font=("Segoe UI", 12, "bold"))
+    style.configure("Status.TLabel", background=palette["surface"], foreground=palette["muted"])
+    style.configure("TButton", padding=(10, 6), background=palette["button"], foreground=palette["text"])
+    style.map("TButton", background=[("active", palette["button_active"])], foreground=[("active", palette["text"])])
+    style.configure("Tool.TButton", padding=(8, 5), background=palette["button"], foreground=palette["text"])
+    style.map("Tool.TButton", background=[("active", palette["button_active"])], foreground=[("active", palette["text"])])
+    style.configure("Accent.TButton", padding=(12, 7), background=palette["accent"], foreground="#ffffff")
+    style.map("Accent.TButton", background=[("active", palette["accent_active"])], foreground=[("active", "#ffffff")])
+    style.configure("TRadiobutton", background=palette["surface"], foreground=palette["text"])
+    style.map("TRadiobutton", background=[("active", palette["surface"])], foreground=[("active", palette["text"])])
+    style.configure("TEntry", padding=5, fieldbackground=palette["surface_alt"], foreground=palette["text"])
+    style.configure("TSpinbox", arrowsize=12, fieldbackground=palette["surface_alt"], foreground=palette["text"])
 
 
 class MSG(ctypes.Structure):
@@ -340,7 +405,7 @@ class EditorState:
 
 
 class ImageEditor(Toplevel):
-    def __init__(self, master, image_path: Path, on_saved, initial_color: str = "#ff3030"):
+    def __init__(self, master, image_path: Path, on_saved, initial_color: str = "#ff3030", theme: str = "light"):
         super().__init__(master)
         self.title(f"Edition - {image_path.name}")
         self.geometry("1060x760")
@@ -349,11 +414,14 @@ class ImageEditor(Toplevel):
         self.state = EditorState(Image.open(image_path).convert("RGB"), image_path)
         self.brush_size = StringVar(value="6")
         self.marker_number = StringVar(value="1")
+        self.icon_size = StringVar(value="6")
         self.tool_color = StringVar(value=valid_hex_color(initial_color, "#ff3030"))
         self.status = StringVar(value="Selectionnez un outil, puis agissez directement sur l'image.")
+        self.theme = normalize_theme(theme)
+        self.palette = THEMES[self.theme]
         self.icons = self.build_icons()
 
-        self.configure(background="#f4f6f8")
+        self.configure(background=self.palette["editor_bg"])
         toolbar = ttk.Frame(self, padding=(10, 8), style="Surface.TFrame")
         toolbar.pack(side=TOP, fill=X)
         for column in range(8):
@@ -364,9 +432,16 @@ class ImageEditor(Toplevel):
         self.icon_button(toolbar, "Dessin", "draw", lambda: self.set_mode("draw")).grid(row=0, column=1, padx=2, pady=2)
         self.icon_button(toolbar, "Cadre", "frame", lambda: self.set_mode("frame")).grid(row=0, column=2, padx=2, pady=2)
         self.icon_button(toolbar, "Recadrer", "crop", lambda: self.set_mode("crop")).grid(row=0, column=3, padx=2, pady=2)
-        ttk.Label(toolbar, text="Taille").grid(row=0, column=4, sticky=E, padx=(12, 4))
+        ttk.Label(toolbar, text="Trait").grid(row=0, column=4, sticky=E, padx=(12, 4))
         ttk.Spinbox(toolbar, from_=1, to=50, width=4, textvariable=self.brush_size).grid(row=0, column=5, padx=2, pady=2)
-        self.editor_color_preview = Canvas(toolbar, width=28, height=22, highlightthickness=1, highlightbackground="#b8c0cc")
+        self.editor_color_preview = Canvas(
+            toolbar,
+            width=28,
+            height=22,
+            background=self.palette["surface"],
+            highlightthickness=1,
+            highlightbackground=self.palette["border"],
+        )
         self.editor_color_preview.grid(row=0, column=6, padx=(12, 4), pady=2)
         self.editor_color_preview.bind("<Button-1>", lambda _event: self.choose_tool_color())
         self.icon_button(toolbar, "Couleur", "color", self.choose_tool_color).grid(row=0, column=7, sticky=W, padx=2, pady=2)
@@ -382,13 +457,16 @@ class ImageEditor(Toplevel):
 
         ttk.Label(toolbar, text="Logos", style="Title.TLabel").grid(row=2, column=0, sticky=W, padx=(0, 10), pady=(6, 0))
         self.icon_button(toolbar, "Numero", "number", lambda: self.set_mode("number")).grid(row=2, column=1, padx=2, pady=(6, 2))
-        ttk.Spinbox(toolbar, from_=1, to=999, width=5, textvariable=self.marker_number).grid(row=2, column=2, padx=2, pady=(6, 2))
-        self.icon_button(toolbar, "Warning", "warning", lambda: self.set_mode("warning")).grid(row=2, column=3, padx=2, pady=(6, 2))
-        self.icon_button(toolbar, "Interdit", "forbidden", lambda: self.set_mode("forbidden")).grid(row=2, column=4, padx=2, pady=(6, 2))
-        self.icon_button(toolbar, "Info", "info", lambda: self.set_mode("info")).grid(row=2, column=5, padx=2, pady=(6, 2))
-        self.icon_button(toolbar, "Valide", "check", lambda: self.set_mode("check")).grid(row=2, column=6, padx=2, pady=(6, 2))
+        ttk.Label(toolbar, text="N").grid(row=2, column=2, sticky=E, padx=(4, 2), pady=(6, 2))
+        ttk.Spinbox(toolbar, from_=1, to=999, width=5, textvariable=self.marker_number).grid(row=2, column=3, sticky=W, padx=2, pady=(6, 2))
+        ttk.Label(toolbar, text="Taille logo").grid(row=2, column=4, sticky=E, padx=(8, 2), pady=(6, 2))
+        ttk.Spinbox(toolbar, from_=1, to=50, width=4, textvariable=self.icon_size).grid(row=2, column=5, sticky=W, padx=2, pady=(6, 2))
+        self.icon_button(toolbar, "Warning", "warning", lambda: self.set_mode("warning")).grid(row=3, column=1, padx=2, pady=(6, 2))
+        self.icon_button(toolbar, "Interdit", "forbidden", lambda: self.set_mode("forbidden")).grid(row=3, column=2, padx=2, pady=(6, 2))
+        self.icon_button(toolbar, "Info", "info", lambda: self.set_mode("info")).grid(row=3, column=3, padx=2, pady=(6, 2))
+        self.icon_button(toolbar, "Valide", "check", lambda: self.set_mode("check")).grid(row=3, column=4, padx=2, pady=(6, 2))
 
-        self.canvas = Canvas(self, background="#202124", highlightthickness=0)
+        self.canvas = Canvas(self, background=self.palette["canvas_bg"], highlightthickness=0)
         self.canvas.pack(side=TOP, fill=BOTH, expand=True)
         ttk.Label(self, textvariable=self.status, anchor=W, padding=(10, 5)).pack(side=BOTTOM, fill=X)
 
@@ -567,9 +645,9 @@ class ImageEditor(Toplevel):
 
     def marker_size(self) -> int:
         try:
-            value = int(self.brush_size.get() or 1)
+            value = int(self.icon_size.get() or 1)
         except ValueError:
-            value = 24
+            value = 6
         return max(28, min(180, value * 6))
 
     def next_marker_number(self) -> str:
@@ -584,81 +662,112 @@ class ImageEditor(Toplevel):
     def place_marker(self, center: tuple[int, int]) -> None:
         mode = self.state.mode
         size = self.marker_size()
-        draw = ImageDraw.Draw(self.state.image)
         color = hex_to_rgb(self.tool_color.get())
         if mode == "number":
-            self.draw_number_marker(draw, center, size, color, self.next_marker_number())
+            marker = self.create_number_marker(size, color, self.next_marker_number())
         elif mode == "warning":
-            self.draw_warning_marker(draw, center, size)
+            marker = self.create_warning_marker(size)
         elif mode == "forbidden":
-            self.draw_forbidden_marker(draw, center, size)
+            marker = self.create_forbidden_marker(size)
         elif mode == "info":
-            self.draw_info_marker(draw, center, size)
+            marker = self.create_info_marker(size)
         elif mode == "check":
-            self.draw_check_marker(draw, center, size)
+            marker = self.create_check_marker(size)
+        else:
+            return
+        self.paste_marker(marker, center)
         self.status.set("Logo ajoute")
         self.render()
 
-    def draw_number_marker(
-        self,
-        draw: ImageDraw.ImageDraw,
-        center: tuple[int, int],
-        size: int,
-        color: tuple[int, int, int],
-        number: str,
-    ) -> None:
-        radius = size // 2
-        outline_width = max(3, size // 12)
-        box = (center[0] - radius, center[1] - radius, center[0] + radius, center[1] + radius)
-        draw.ellipse(box, fill=color, outline=(255, 255, 255), width=outline_width)
-        font = load_marker_font(max(14, int(size * 0.48)))
-        draw_centered_text(draw, center, number, font, (255, 255, 255))
+    def marker_canvas(self, size: int, scale: int = 4) -> tuple[Image.Image, ImageDraw.ImageDraw, int]:
+        canvas = Image.new("RGBA", (size * scale, size * scale), (0, 0, 0, 0))
+        return canvas, ImageDraw.Draw(canvas), scale
 
-    def draw_warning_marker(self, draw: ImageDraw.ImageDraw, center: tuple[int, int], size: int) -> None:
-        half = size // 2
-        outline_width = max(3, size // 16)
+    def finish_marker(self, marker: Image.Image, size: int) -> Image.Image:
+        return marker.resize((size, size), Image.Resampling.LANCZOS)
+
+    def paste_marker(self, marker: Image.Image, center: tuple[int, int]) -> None:
+        x = center[0] - marker.width // 2
+        y = center[1] - marker.height // 2
+        image_width, image_height = self.state.image.size
+        left = max(0, x)
+        top = max(0, y)
+        right = min(image_width, x + marker.width)
+        bottom = min(image_height, y + marker.height)
+        if right <= left or bottom <= top:
+            return
+        marker_crop = marker.crop((left - x, top - y, right - x, bottom - y))
+        self.state.image.paste(marker_crop, (left, top), marker_crop)
+
+    def create_number_marker(self, size: int, color: tuple[int, int, int], number: str) -> Image.Image:
+        marker, draw, scale = self.marker_canvas(size)
+        s = size * scale
+        pad = max(3 * scale, int(s * 0.06))
+        shadow = int(s * 0.04)
+        outline_width = max(3 * scale, int(s * 0.08))
+        draw.ellipse((pad + shadow, pad + shadow, s - pad + shadow, s - pad + shadow), fill=(0, 0, 0, 70))
+        draw.ellipse((pad, pad, s - pad, s - pad), fill=(*color, 255), outline=(255, 255, 255, 255), width=outline_width)
+        font_size = int(s * (0.48 if len(number) <= 2 else 0.38))
+        font = load_marker_font(max(12, font_size))
+        draw_centered_text(draw, (s // 2, s // 2), number, font, (255, 255, 255))
+        return self.finish_marker(marker, size)
+
+    def create_warning_marker(self, size: int) -> Image.Image:
+        marker, draw, scale = self.marker_canvas(size)
+        s = size * scale
+        pad = int(s * 0.09)
+        outline_width = max(3 * scale, int(s * 0.055))
+        points = [(s // 2, pad), (s - pad, s - pad), (pad, s - pad)]
+        shadow = int(s * 0.035)
+        shadow_points = [(x + shadow, y + shadow) for x, y in points]
+        draw.polygon(shadow_points, fill=(0, 0, 0, 70))
+        draw.polygon(points, fill=(245, 158, 11, 255))
+        draw.line([points[0], points[1], points[2], points[0]], fill=(120, 53, 15, 255), width=outline_width, joint="curve")
+        font = load_marker_font(int(s * 0.62))
+        draw_centered_text(draw, (s // 2, int(s * 0.63)), "!", font, (30, 41, 59))
+        return self.finish_marker(marker, size)
+
+    def create_forbidden_marker(self, size: int) -> Image.Image:
+        marker, draw, scale = self.marker_canvas(size)
+        s = size * scale
+        pad = int(s * 0.12)
+        width = max(5 * scale, int(s * 0.13))
+        box = (pad, pad, s - pad, s - pad)
+        shadow = int(s * 0.035)
+        draw.ellipse((pad + shadow, pad + shadow, s - pad + shadow, s - pad + shadow), outline=(0, 0, 0, 80), width=width)
+        draw.ellipse(box, fill=(255, 255, 255, 230), outline=(220, 38, 38, 255), width=width)
+        offset = int(s * 0.29)
+        draw.line((s // 2 - offset, s // 2 + offset, s // 2 + offset, s // 2 - offset), fill=(220, 38, 38, 255), width=width)
+        return self.finish_marker(marker, size)
+
+    def create_info_marker(self, size: int) -> Image.Image:
+        marker, draw, scale = self.marker_canvas(size)
+        s = size * scale
+        pad = int(s * 0.08)
+        outline_width = max(3 * scale, int(s * 0.055))
+        shadow = int(s * 0.04)
+        draw.ellipse((pad + shadow, pad + shadow, s - pad + shadow, s - pad + shadow), fill=(0, 0, 0, 70))
+        draw.ellipse((pad, pad, s - pad, s - pad), fill=(37, 99, 235, 255), outline=(255, 255, 255, 255), width=outline_width)
+        font = load_marker_font(int(s * 0.64))
+        draw_centered_text(draw, (s // 2, int(s * 0.53)), "i", font, (255, 255, 255))
+        return self.finish_marker(marker, size)
+
+    def create_check_marker(self, size: int) -> Image.Image:
+        marker, draw, scale = self.marker_canvas(size)
+        s = size * scale
+        pad = int(s * 0.08)
+        outline_width = max(3 * scale, int(s * 0.055))
+        shadow = int(s * 0.04)
+        draw.ellipse((pad + shadow, pad + shadow, s - pad + shadow, s - pad + shadow), fill=(0, 0, 0, 70))
+        draw.ellipse((pad, pad, s - pad, s - pad), fill=(22, 163, 74, 255), outline=(255, 255, 255, 255), width=outline_width)
+        width = max(5 * scale, int(s * 0.1))
         points = [
-            (center[0], center[1] - half),
-            (center[0] - half, center[1] + half),
-            (center[0] + half, center[1] + half),
+            (int(s * 0.28), int(s * 0.52)),
+            (int(s * 0.43), int(s * 0.67)),
+            (int(s * 0.73), int(s * 0.35)),
         ]
-        draw.polygon(points, fill=(245, 158, 11), outline=(120, 53, 15))
-        draw.line([points[0], points[1], points[2], points[0]], fill=(120, 53, 15), width=outline_width, joint="curve")
-        font = load_marker_font(max(18, int(size * 0.72)))
-        draw_centered_text(draw, (center[0], center[1] + size // 8), "!", font, (30, 41, 59))
-
-    def draw_forbidden_marker(self, draw: ImageDraw.ImageDraw, center: tuple[int, int], size: int) -> None:
-        radius = size // 2
-        width = max(5, size // 7)
-        box = (center[0] - radius, center[1] - radius, center[0] + radius, center[1] + radius)
-        draw.ellipse(box, outline=(220, 38, 38), width=width)
-        offset = int(radius * 0.68)
-        draw.line(
-            (center[0] - offset, center[1] + offset, center[0] + offset, center[1] - offset),
-            fill=(220, 38, 38),
-            width=width,
-        )
-
-    def draw_info_marker(self, draw: ImageDraw.ImageDraw, center: tuple[int, int], size: int) -> None:
-        radius = size // 2
-        outline_width = max(3, size // 14)
-        box = (center[0] - radius, center[1] - radius, center[0] + radius, center[1] + radius)
-        draw.ellipse(box, fill=(37, 99, 235), outline=(255, 255, 255), width=outline_width)
-        font = load_marker_font(max(18, int(size * 0.72)))
-        draw_centered_text(draw, (center[0], center[1] + size // 20), "i", font, (255, 255, 255))
-
-    def draw_check_marker(self, draw: ImageDraw.ImageDraw, center: tuple[int, int], size: int) -> None:
-        radius = size // 2
-        outline_width = max(3, size // 14)
-        box = (center[0] - radius, center[1] - radius, center[0] + radius, center[1] + radius)
-        draw.ellipse(box, fill=(22, 163, 74), outline=(255, 255, 255), width=outline_width)
-        width = max(5, size // 9)
-        points = [
-            (center[0] - int(size * 0.24), center[1]),
-            (center[0] - int(size * 0.06), center[1] + int(size * 0.18)),
-            (center[0] + int(size * 0.28), center[1] - int(size * 0.22)),
-        ]
-        draw.line(points, fill=(255, 255, 255), width=width, joint="curve")
+        draw.line(points, fill=(255, 255, 255, 255), width=width, joint="curve")
+        return self.finish_marker(marker, size)
 
     def on_drag(self, event) -> None:
         point = self.canvas_to_image(event.x, event.y)
@@ -827,6 +936,7 @@ class ScreenshotManager:
         self.capture_mode_var = StringVar(value=capture_mode)
         self.selection_color_var = StringVar(value=valid_hex_color(self.config.get("selection_color", ""), "#00d1ff"))
         self.editor_color_var = StringVar(value=valid_hex_color(self.config.get("editor_color", ""), "#ff3030"))
+        self.theme_var = StringVar(value=normalize_theme(self.config.get("theme", "light")))
         self.folder_var = StringVar(value=str(self.capture_dir))
         self.status_var = StringVar(value="")
         self.preview_image = None
@@ -840,7 +950,9 @@ class ScreenshotManager:
         self.root.protocol("WM_DELETE_WINDOW", self.close)
 
     def build_ui(self) -> None:
-        self.root.configure(background="#eef2f6")
+        palette = THEMES[self.theme_var.get()]
+        apply_app_style(ttk.Style(self.root), self.theme_var.get())
+        self.root.configure(background=palette["app_bg"])
         self.root.columnconfigure(1, weight=1)
         self.root.rowconfigure(1, weight=1)
 
@@ -868,16 +980,32 @@ class ScreenshotManager:
         ttk.Radiobutton(mode_frame, text="Zone", variable=self.capture_mode_var, value="area").pack(side=LEFT, padx=(12, 0))
         ttk.Button(settings, text="Tout l'ecran", command=self.take_full_screenshot).grid(row=2, column=2, padx=8, pady=(8, 0))
         ttk.Button(settings, text="Selection zone", command=self.start_area_screenshot).grid(row=2, column=3, pady=(8, 0))
+        self.theme_button = ttk.Button(settings, text=self.theme_button_text(), command=self.toggle_theme)
+        self.theme_button.grid(row=3, column=0, sticky=W, pady=(10, 0), padx=(0, 8))
 
         color_frame = ttk.Frame(settings, style="Surface.TFrame")
         color_frame.grid(row=3, column=1, columnspan=3, sticky=W, pady=(10, 0))
         ttk.Label(color_frame, text="Rectangle zone").pack(side=LEFT)
-        self.selection_color_preview = Canvas(color_frame, width=28, height=22, highlightthickness=1, highlightbackground="#b8c0cc")
+        self.selection_color_preview = Canvas(
+            color_frame,
+            width=28,
+            height=22,
+            background=palette["surface"],
+            highlightthickness=1,
+            highlightbackground=palette["border"],
+        )
         self.selection_color_preview.pack(side=LEFT, padx=(8, 4))
         self.selection_color_preview.bind("<Button-1>", lambda _event: self.choose_selection_color())
         ttk.Button(color_frame, text="Couleur", command=self.choose_selection_color).pack(side=LEFT, padx=(0, 18))
         ttk.Label(color_frame, text="Edition").pack(side=LEFT)
-        self.default_editor_color_preview = Canvas(color_frame, width=28, height=22, highlightthickness=1, highlightbackground="#b8c0cc")
+        self.default_editor_color_preview = Canvas(
+            color_frame,
+            width=28,
+            height=22,
+            background=palette["surface"],
+            highlightthickness=1,
+            highlightbackground=palette["border"],
+        )
         self.default_editor_color_preview.pack(side=LEFT, padx=(8, 4))
         self.default_editor_color_preview.bind("<Button-1>", lambda _event: self.choose_editor_color())
         ttk.Button(color_frame, text="Couleur", command=self.choose_editor_color).pack(side=LEFT)
@@ -895,9 +1023,11 @@ class ScreenshotManager:
             exportselection=False,
             borderwidth=0,
             highlightthickness=1,
-            highlightbackground="#c6ced8",
-            selectbackground="#2563eb",
-            selectforeground="white",
+            highlightbackground=palette["border"],
+            background=palette["list_bg"],
+            foreground=palette["list_fg"],
+            selectbackground=palette["select_bg"],
+            selectforeground=palette["select_fg"],
             activestyle="none",
         )
         self.history_list.pack(side=LEFT, fill=Y)
@@ -915,7 +1045,7 @@ class ScreenshotManager:
         preview_panel.grid(row=1, column=1, sticky=N + S + E + W, padx=(6, 12), pady=6)
         preview_panel.rowconfigure(0, weight=1)
         preview_panel.columnconfigure(0, weight=1)
-        self.preview_canvas = Canvas(preview_panel, background="#17191c", highlightthickness=0)
+        self.preview_canvas = Canvas(preview_panel, background=palette["preview_bg"], highlightthickness=0)
         self.preview_canvas.grid(row=0, column=0, sticky=N + S + E + W)
         self.preview_canvas.bind("<Configure>", lambda _event: self.show_selected())
 
@@ -953,10 +1083,39 @@ class ScreenshotManager:
         self.config["capture_mode"] = self.capture_mode_var.get()
         self.config["selection_color"] = self.selection_color_var.get()
         self.config["editor_color"] = self.editor_color_var.get()
+        self.config["theme"] = self.theme_var.get()
         save_config(self.config)
         self.hotkey_listener.set_hotkey(normalized_hotkey)
         self.refresh_history()
         self.status_var.set(f"Configuration sauvegardee. Raccourci actif: {display_hotkey(normalized_hotkey)}")
+
+    def theme_button_text(self) -> str:
+        return "Theme clair" if self.theme_var.get() == "dark" else "Theme sombre"
+
+    def toggle_theme(self) -> None:
+        self.theme_var.set("dark" if self.theme_var.get() == "light" else "light")
+        self.config["theme"] = self.theme_var.get()
+        save_config(self.config)
+        self.apply_theme()
+        self.status_var.set("Theme sombre active." if self.theme_var.get() == "dark" else "Theme clair active.")
+
+    def apply_theme(self) -> None:
+        theme = self.theme_var.get()
+        palette = THEMES[theme]
+        apply_app_style(ttk.Style(self.root), theme)
+        self.root.configure(background=palette["app_bg"])
+        self.theme_button.configure(text=self.theme_button_text())
+        self.history_list.configure(
+            background=palette["list_bg"],
+            foreground=palette["list_fg"],
+            highlightbackground=palette["border"],
+            selectbackground=palette["select_bg"],
+            selectforeground=palette["select_fg"],
+        )
+        self.preview_canvas.configure(background=palette["preview_bg"])
+        for preview in (self.selection_color_preview, self.default_editor_color_preview):
+            preview.configure(background=palette["surface"], highlightbackground=palette["border"])
+        self.update_main_color_previews()
 
     def choose_selection_color(self) -> None:
         _rgb, color = colorchooser.askcolor(color=self.selection_color_var.get(), title="Couleur du rectangle de zone")
@@ -1133,7 +1292,7 @@ class ScreenshotManager:
         if not path:
             messagebox.showinfo("Edition", "Selectionnez une image dans l'historique.")
             return
-        ImageEditor(self.root, path, self.after_edit_saved, self.editor_color_var.get())
+        ImageEditor(self.root, path, self.after_edit_saved, self.editor_color_var.get(), self.theme_var.get())
 
     def copy_selected_image(self) -> None:
         path = self.selected_path()
@@ -1161,21 +1320,7 @@ def main() -> None:
     style = ttk.Style(root)
     if "clam" in style.theme_names():
         style.theme_use("clam")
-    style.configure(".", font=("Segoe UI", 10), background="#eef2f6", foreground="#172033")
-    style.configure("TFrame", background="#eef2f6")
-    style.configure("Surface.TFrame", background="#ffffff", relief="flat")
-    style.configure("TLabel", background="#ffffff", foreground="#172033")
-    style.configure("Title.TLabel", background="#ffffff", foreground="#172033", font=("Segoe UI", 12, "bold"))
-    style.configure("Status.TLabel", background="#ffffff", foreground="#4b5563")
-    style.configure("TButton", padding=(10, 6), background="#f8fafc", foreground="#172033")
-    style.map("TButton", background=[("active", "#e8eef6")])
-    style.configure("Tool.TButton", padding=(8, 5), background="#f8fafc", foreground="#172033")
-    style.map("Tool.TButton", background=[("active", "#e8eef6")])
-    style.configure("Accent.TButton", padding=(12, 7), background="#2563eb", foreground="#ffffff")
-    style.map("Accent.TButton", background=[("active", "#1d4ed8")], foreground=[("active", "#ffffff")])
-    style.configure("TRadiobutton", background="#ffffff", foreground="#172033")
-    style.map("TRadiobutton", background=[("active", "#ffffff")])
-    style.configure("TEntry", padding=5)
+    apply_app_style(style, normalize_theme(load_config().get("theme", "light")))
     ScreenshotManager(root)
     root.mainloop()
 

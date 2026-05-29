@@ -9,6 +9,7 @@ Application Python avec interface graphique pour capturer des screenshots dans u
 - Captures PNG horodatees
 - Capture de tout l'ecran ou d'une zone selectionnee
 - Couleur configurable pour le rectangle de selection de zone
+- Theme clair ou sombre, sauvegarde automatiquement
 - Historique automatique des images du dossier
 - Apercu des images
 - Copie de l'image selectionnee dans le presse-papiers
@@ -59,8 +60,8 @@ Les boutons `Tout l'ecran` et `Selection zone` restent disponibles pour lancer d
 
 La couleur du rectangle de selection se regle depuis l'ecran principal.
 
-Dans l'editeur, utilisez `Couleur`, puis le mode `Dessin` ou `Cadre`. La taille controle l'epaisseur du trait ou du cadre.
+Dans l'editeur, utilisez `Couleur`, puis le mode `Dessin` ou `Cadre`. `Trait` controle l'epaisseur du dessin ou du cadre.
 
-Les boutons d'edition affichent maintenant un pictogramme. `Numero`, `Warning`, `Interdit`, `Info` et `Valide` placent un logo au clic sur l'image. La taille du logo depend du champ `Taille`; le numero s'incremente automatiquement.
+Les boutons d'edition affichent maintenant un pictogramme. `Numero`, `Warning`, `Interdit`, `Info` et `Valide` placent un logo au clic sur l'image. `Taille logo` controle la taille des pictogrammes. Le champ `N` est un compteur separe utilise uniquement par `Numero`. Les logos sont rendus avec anti-aliasing pour des bords plus propres.
 
 Le bouton `Copier l'image` copie l'image selectionnee dans le presse-papiers Windows. Dans l'editeur, le bouton `Copier` copie l'image modifiee en cours.

@@ -13,6 +13,7 @@ Application Windows avec interface graphique pour capturer, organiser et annoter
 - Historique automatique des images du dossier
 - Apercu des images
 - Copie d'une image dans le presse-papiers Windows
+- Suppression d'une image depuis l'historique avec confirmation
 - Edition: dessin, cadres colores, recadrage, rotation, miroir, niveaux de gris
 - Logos d'annotation: numero, warning, interdit, info, valide
 - Logos rendus avec anti-aliasing pour des bords plus propres
@@ -101,3 +102,9 @@ Logos disponibles:
 - `Copier` dans l'editeur copie l'image en cours de modification
 
 L'image peut ensuite etre collee dans Paint, Word, Teams, Discord ou tout autre logiciel compatible.
+
+## Suppression
+
+Depuis l'historique, selectionnez une image puis cliquez sur `Supprimer`.
+
+Une confirmation affiche le nom du fichier avant suppression definitive.

@@ -146,6 +146,13 @@ L'application lit automatiquement:
 - le premier asset `.exe` comme fichier a telecharger
 - le corps de la release comme notes
 
+Si le message indique qu'aucune mise a jour exploitable n'a ete trouvee, verifiez:
+
+- le depot GitHub est public
+- au moins une release existe
+- le tag de la release est superieur a la version locale, par exemple `v0.13.0`
+- un fichier `.exe` est attache dans les assets de la release
+
 ### Avec Un Manifeste JSON
 
 Format attendu:

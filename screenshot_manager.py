@@ -375,11 +375,20 @@ def github_repo_url_to_latest_release_api(url: str) -> str:
 
 
 def normalize_update_manifest(raw_manifest: dict) -> dict:
+    if "message" in raw_manifest and "tag_name" not in raw_manifest:
+        return {
+            "version": "",
+            "download_url": "",
+            "notes": "",
+            "error": str(raw_manifest.get("message", "")).strip(),
+        }
+
     if "version" in raw_manifest and "download_url" in raw_manifest:
         return {
             "version": str(raw_manifest.get("version", "")).strip(),
             "download_url": str(raw_manifest.get("download_url", "")).strip(),
             "notes": str(raw_manifest.get("notes", "")).strip(),
+            "error": "",
         }
 
     if "tag_name" in raw_manifest and "assets" in raw_manifest:
@@ -390,15 +399,24 @@ def normalize_update_manifest(raw_manifest: dict) -> dict:
             if name.endswith(".exe"):
                 exe_asset = asset
                 break
-        if exe_asset is None and assets:
-            exe_asset = assets[0]
+        error = ""
+        if not assets:
+            error = "La derniere release GitHub ne contient aucun fichier attache."
+        elif exe_asset is None:
+            error = "La derniere release GitHub ne contient aucun fichier `.exe` dans ses assets."
         return {
             "version": str(raw_manifest.get("tag_name", "")).strip().lstrip("v"),
             "download_url": str(exe_asset.get("browser_download_url", "") if exe_asset else "").strip(),
             "notes": str(raw_manifest.get("body", "")).strip(),
+            "error": error,
         }
 
-    return {"version": "", "download_url": "", "notes": ""}
+    return {
+        "version": "",
+        "download_url": "",
+        "notes": "",
+        "error": "Reponse non reconnue. Utilisez une GitHub Release ou un manifeste JSON valide.",
+    }
 
 
 class MSG(ctypes.Structure):
@@ -1330,13 +1348,25 @@ class ScreenshotManager:
             return
 
         manifest = payload
+        manifest_error = str(manifest.get("error", "")).strip()
         remote_version = str(manifest.get("version", "")).strip()
         download_url = str(manifest.get("download_url", "")).strip()
         notes = str(manifest.get("notes", "")).strip()
         if not remote_version or not download_url:
-            self.status_var.set("Manifeste de mise a jour invalide.")
+            detail = manifest_error or "Le manifeste doit contenir `version` et `download_url`."
+            if "Not Found" in detail:
+                detail = (
+                    "Aucune release GitHub publique n'a ete trouvee pour ce depot.\n\n"
+                    "Verifiez que le depot est public et qu'une release existe."
+                )
+            self.status_var.set("Aucune mise a jour exploitable trouvee.")
             if manual:
-                messagebox.showerror("Mise a jour", "Le manifeste doit contenir `version` et `download_url`.")
+                messagebox.showerror(
+                    "Mise a jour",
+                    f"{detail}\n\n"
+                    "Pour GitHub, creez une release avec un tag comme `v0.13.0` "
+                    "et ajoutez le fichier `.exe` dans les assets de la release.",
+                )
             return
 
         if not is_newer_version(remote_version, APP_VERSION):

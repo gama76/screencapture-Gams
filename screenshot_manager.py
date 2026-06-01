@@ -35,6 +35,7 @@ from tkinter import (
     colorchooser,
     filedialog,
     messagebox,
+    simpledialog,
     ttk,
 )
 
@@ -42,7 +43,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageGrab, ImageOps, I
 
 
 APP_DIR = Path(".")
-APP_VERSION = "0.16.0"
+APP_VERSION = "0.17.0"
 DEFAULT_UPDATE_REPO_URL = "https://github.com/gama76/screencapture-Gams"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/gama76/screencapture-Gams/releases/latest"
 CONFIG_PATH = APP_DIR / "config.json"
@@ -1223,7 +1224,8 @@ class ScreenshotManager:
         ttk.Button(left_panel, text="Rafraichir", command=self.refresh_history).grid(row=2, column=0, sticky=E + W, pady=(10, 0))
         ttk.Button(left_panel, text="Copier l'image", command=self.copy_selected_image).grid(row=3, column=0, sticky=E + W, pady=(6, 0))
         ttk.Button(left_panel, text="Modifier l'image", command=self.edit_selected).grid(row=4, column=0, sticky=E + W, pady=(6, 0))
-        ttk.Button(left_panel, text="Supprimer", command=self.delete_selected_image).grid(row=5, column=0, sticky=E + W, pady=(6, 0))
+        ttk.Button(left_panel, text="Renommer", command=self.rename_selected_image).grid(row=5, column=0, sticky=E + W, pady=(6, 0))
+        ttk.Button(left_panel, text="Supprimer", command=self.delete_selected_image).grid(row=6, column=0, sticky=E + W, pady=(6, 0))
 
         preview_panel = ttk.Frame(self.root, padding=(12, 10), style="Surface.TFrame")
         preview_panel.grid(row=1, column=1, sticky=N + S + E + W, padx=(6, 12), pady=6)
@@ -1242,6 +1244,7 @@ class ScreenshotManager:
         file_menu.add_command(label="Tout l'ecran", command=self.take_full_screenshot)
         file_menu.add_command(label="Selection zone", command=self.start_area_screenshot)
         file_menu.add_command(label="Copier l'image selectionnee", command=self.copy_selected_image)
+        file_menu.add_command(label="Renommer l'image selectionnee", command=self.rename_selected_image)
         file_menu.add_command(label="Supprimer l'image selectionnee", command=self.delete_selected_image)
         file_menu.add_command(label="Rafraichir", command=self.refresh_history)
         file_menu.add_separator()
@@ -1656,6 +1659,51 @@ endlocal
             messagebox.showerror("Copie impossible", str(error))
             return
         self.status_var.set(f"Image copiee dans le presse-papiers: {path.name}")
+
+    def rename_selected_image(self) -> None:
+        path = self.selected_path()
+        if not path:
+            messagebox.showinfo("Renommer", "Selectionnez une image dans l'historique.")
+            return
+        if not path.exists():
+            self.refresh_history()
+            self.status_var.set("Image introuvable, historique rafraichi.")
+            return
+
+        new_name = simpledialog.askstring(
+            "Renommer",
+            "Nouveau nom du screenshot:",
+            initialvalue=path.stem,
+            parent=self.root,
+        )
+        if new_name is None:
+            return
+
+        new_name = new_name.strip()
+        if not new_name:
+            messagebox.showerror("Renommer", "Le nom ne peut pas etre vide.")
+            return
+        if any(character in new_name for character in '<>:"/\\|?*'):
+            messagebox.showerror("Renommer", 'Le nom contient un caractere interdit: <>:"/\\|?*')
+            return
+
+        target = path.with_name(new_name)
+        if target.suffix.lower() not in IMAGE_EXTENSIONS:
+            target = target.with_suffix(path.suffix)
+        if target == path:
+            return
+        if target.exists():
+            messagebox.showerror("Renommer", "Un fichier avec ce nom existe deja.")
+            return
+
+        try:
+            path.rename(target)
+        except OSError as error:
+            messagebox.showerror("Renommage impossible", str(error))
+            return
+
+        self.refresh_history(select_path=target)
+        self.status_var.set(f"Image renommee: {target.name}")
 
     def delete_selected_image(self) -> None:
         path = self.selected_path()

@@ -15,6 +15,7 @@ Application Windows avec interface graphique pour capturer, organiser et annoter
 - Apercu des images
 - Copie d'une image dans le presse-papiers Windows
 - Suppression d'une image depuis l'historique avec confirmation
+- Renommage d'une image depuis l'historique
 - Edition: dessin, cadres colores, floutage de zone, recadrage, rotation, miroir, niveaux de gris
 - Annulation dans l'editeur avec `Ctrl+Z`
 - Logos d'annotation: numero, warning, interdit, info, valide
@@ -116,6 +117,12 @@ L'image peut ensuite etre collee dans Paint, Word, Teams, Discord ou tout autre 
 Depuis l'historique, selectionnez une image puis cliquez sur `Supprimer`.
 
 Une confirmation affiche le nom du fichier avant suppression definitive.
+
+## Renommage
+
+Depuis l'historique, selectionnez une image puis cliquez sur `Renommer`.
+
+Le renommage conserve l'extension si vous ne la saisissez pas. Les caracteres interdits Windows sont refuses.
 
 ## Mises A Jour
 

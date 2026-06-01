@@ -154,6 +154,7 @@ def load_config() -> dict:
         "theme": "light",
         "update_manifest_url": DEFAULT_UPDATE_MANIFEST_URL,
         "installed_release_version": APP_VERSION,
+        "ignored_update_version": "",
     }
 
 
@@ -1099,6 +1100,7 @@ class ScreenshotManager:
         self.theme_var = StringVar(value=normalize_theme(self.config.get("theme", "light")))
         self.update_manifest_var = StringVar(value=self.config.get("update_manifest_url") or DEFAULT_UPDATE_MANIFEST_URL)
         self.installed_release_version = str(self.config.get("installed_release_version", APP_VERSION)).strip() or APP_VERSION
+        self.ignored_update_version = str(self.config.get("ignored_update_version", "")).strip()
         self.folder_var = StringVar(value=str(self.capture_dir))
         self.status_var = StringVar(value="")
         self.update_in_progress = False
@@ -1382,6 +1384,15 @@ class ScreenshotManager:
             return
 
         current_version = self.effective_app_version()
+        if remote_version == self.ignored_update_version:
+            self.status_var.set(f"Mise a jour v{remote_version} deja traitee.")
+            if manual:
+                messagebox.showinfo(
+                    "Mise a jour",
+                    f"La version v{remote_version} a deja ete traitee. Elle ne sera pas reproposee automatiquement.",
+                )
+            return
+
         if not is_newer_version(remote_version, current_version):
             self.status_var.set(f"Application a jour: v{current_version}")
             if manual:
@@ -1393,9 +1404,18 @@ class ScreenshotManager:
             message += f"\n\n{notes}"
         message += "\n\nTelecharger et installer maintenant ?"
         if messagebox.askyesno("Mise a jour disponible", message):
+            self.mark_update_version_as_handled(remote_version)
             self.download_and_install_update(remote_version, download_url)
         else:
+            self.mark_update_version_as_handled(remote_version)
             self.status_var.set(f"Mise a jour disponible: v{remote_version}")
+
+    def mark_update_version_as_handled(self, version: str) -> None:
+        self.ignored_update_version = version
+        self.installed_release_version = max_version(self.installed_release_version, version)
+        self.config["ignored_update_version"] = version
+        self.config["installed_release_version"] = self.installed_release_version
+        save_config(self.config)
 
     def download_and_install_update(self, remote_version: str, download_url: str) -> None:
         if not getattr(sys, "frozen", False):
@@ -1439,8 +1459,17 @@ class ScreenshotManager:
 setlocal
 set "NEW_EXE={downloaded_exe}"
 set "TARGET_EXE={current_exe}"
-timeout /t 2 /nobreak >nul
-copy /y "%NEW_EXE%" "%TARGET_EXE%" >nul
+set RETRIES=30
+:waitloop
+timeout /t 1 /nobreak >nul
+copy /y "%NEW_EXE%" "%TARGET_EXE%" >nul 2>nul
+if %errorlevel%==0 goto copied
+set /a RETRIES-=1
+if %RETRIES% gtr 0 goto waitloop
+echo Impossible de remplacer "%TARGET_EXE%"
+pause
+exit /b 1
+:copied
 start "" "%TARGET_EXE%"
 endlocal
 """

@@ -25,7 +25,7 @@ Application Windows avec interface graphique pour capturer, organiser et annoter
 Version compilee actuelle:
 
 ```powershell
-.\dist\GestionnaireScreenshots_v11\GestionnaireScreenshots_v11.exe
+.\dist\GestionnaireScreenshots_v12\GestionnaireScreenshots_v12.exe
 ```
 
 Lanceur recommande:
@@ -118,10 +118,37 @@ Une confirmation affiche le nom du fichier avant suppression definitive.
 
 L'application peut verifier automatiquement si une nouvelle version existe.
 
-Dans le champ `Mise a jour`, indiquez l'URL d'un manifeste JSON distant, puis cliquez sur `Verifier`.
+Depot configure par defaut:
+
+```text
+https://github.com/gama76/screencapture-Gams
+```
+
+Dans le champ `Mise a jour`, vous pouvez indiquer:
+
+- l'URL du depot GitHub
+- l'URL API GitHub `releases/latest`
+- l'URL d'un manifeste JSON distant
+
+Puis cliquez sur `Verifier`.
 Si l'URL est sauvegardee, l'application refera la verification au prochain demarrage.
 
-Format du manifeste:
+### Avec GitHub Releases
+
+Publiez une release sur GitHub avec:
+
+- un tag superieur a la version locale, par exemple `v0.13.0`
+- un asset `.exe`, par exemple `GestionnaireScreenshots.exe`
+
+L'application lit automatiquement:
+
+- `tag_name` comme version
+- le premier asset `.exe` comme fichier a telecharger
+- le corps de la release comme notes
+
+### Avec Un Manifeste JSON
+
+Format attendu:
 
 ```json
 {

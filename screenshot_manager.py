@@ -42,7 +42,9 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageGrab, ImageOps, I
 
 
 APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "0.11.0"
+APP_VERSION = "0.12.0"
+DEFAULT_UPDATE_REPO_URL = "https://github.com/gama76/screencapture-Gams"
+DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/gama76/screencapture-Gams/releases/latest"
 CONFIG_PATH = APP_DIR / "config.json"
 DEFAULT_CAPTURE_DIR = APP_DIR / "screenshots"
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp"}
@@ -150,7 +152,7 @@ def load_config() -> dict:
         "selection_color": "#00d1ff",
         "editor_color": "#ff3030",
         "theme": "light",
-        "update_manifest_url": "",
+        "update_manifest_url": DEFAULT_UPDATE_MANIFEST_URL,
     }
 
 
@@ -358,6 +360,45 @@ def download_file(url: str, target: Path) -> None:
                 if not chunk:
                     break
                 file.write(chunk)
+
+
+def github_repo_url_to_latest_release_api(url: str) -> str:
+    normalized = url.strip().rstrip("/")
+    prefix = "https://github.com/"
+    if not normalized.startswith(prefix):
+        return normalized
+    parts = normalized[len(prefix) :].split("/")
+    if len(parts) < 2:
+        return normalized
+    owner, repo = parts[0], parts[1]
+    return f"https://api.github.com/repos/{owner}/{repo}/releases/latest"
+
+
+def normalize_update_manifest(raw_manifest: dict) -> dict:
+    if "version" in raw_manifest and "download_url" in raw_manifest:
+        return {
+            "version": str(raw_manifest.get("version", "")).strip(),
+            "download_url": str(raw_manifest.get("download_url", "")).strip(),
+            "notes": str(raw_manifest.get("notes", "")).strip(),
+        }
+
+    if "tag_name" in raw_manifest and "assets" in raw_manifest:
+        assets = raw_manifest.get("assets") or []
+        exe_asset = None
+        for asset in assets:
+            name = str(asset.get("name", "")).lower()
+            if name.endswith(".exe"):
+                exe_asset = asset
+                break
+        if exe_asset is None and assets:
+            exe_asset = assets[0]
+        return {
+            "version": str(raw_manifest.get("tag_name", "")).strip().lstrip("v"),
+            "download_url": str(exe_asset.get("browser_download_url", "") if exe_asset else "").strip(),
+            "notes": str(raw_manifest.get("body", "")).strip(),
+        }
+
+    return {"version": "", "download_url": "", "notes": ""}
 
 
 class MSG(ctypes.Structure):
@@ -1030,7 +1071,7 @@ class ScreenshotManager:
         self.selection_color_var = StringVar(value=valid_hex_color(self.config.get("selection_color", ""), "#00d1ff"))
         self.editor_color_var = StringVar(value=valid_hex_color(self.config.get("editor_color", ""), "#ff3030"))
         self.theme_var = StringVar(value=normalize_theme(self.config.get("theme", "light")))
-        self.update_manifest_var = StringVar(value=self.config.get("update_manifest_url", ""))
+        self.update_manifest_var = StringVar(value=self.config.get("update_manifest_url") or DEFAULT_UPDATE_MANIFEST_URL)
         self.folder_var = StringVar(value=str(self.capture_dir))
         self.status_var = StringVar(value="")
         self.update_in_progress = False
@@ -1252,7 +1293,7 @@ class ScreenshotManager:
             self.check_for_updates(manual=False)
 
     def check_for_updates(self, manual: bool = False) -> None:
-        manifest_url = self.update_manifest_var.get().strip()
+        manifest_url = github_repo_url_to_latest_release_api(self.update_manifest_var.get().strip())
         if not manifest_url:
             if manual:
                 messagebox.showinfo(
@@ -1261,6 +1302,7 @@ class ScreenshotManager:
                 )
             return
         self.config["update_manifest_url"] = manifest_url
+        self.update_manifest_var.set(manifest_url)
         save_config(self.config)
         if self.update_in_progress:
             return
@@ -1270,7 +1312,7 @@ class ScreenshotManager:
 
         def worker() -> None:
             try:
-                manifest = fetch_json(manifest_url)
+                manifest = normalize_update_manifest(fetch_json(manifest_url))
                 result = ("ok", manifest)
             except (OSError, urllib.error.URLError, json.JSONDecodeError, KeyError) as error:
                 result = ("error", str(error))

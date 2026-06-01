@@ -43,7 +43,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageGrab, ImageOps, I
 
 
 APP_DIR = Path(".")
-APP_VERSION = "0.18.0"
+APP_VERSION = "0.18.1"
 DEFAULT_UPDATE_REPO_URL = "https://github.com/gama76/screencapture-Gams"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/gama76/screencapture-Gams/releases/latest"
 CONFIG_PATH = APP_DIR / "config.json"
@@ -1165,10 +1165,15 @@ class ScreenshotManager:
         apply_app_style(ttk.Style(self.root), self.theme_var.get())
         self.root.configure(background=palette["app_bg"])
         self.root.columnconfigure(1, weight=1)
-        self.root.rowconfigure(1, weight=1)
+        self.root.rowconfigure(2, weight=1)
+
+        top_menu = ttk.Frame(self.root, padding=(10, 6), style="Surface.TFrame")
+        top_menu.grid(row=0, column=0, columnspan=2, sticky=E + W)
+        self.file_button = ttk.Button(top_menu, text="Fichier", command=self.show_file_menu)
+        self.file_button.pack(side=LEFT)
 
         settings = ttk.Frame(self.root, padding=(14, 12), style="Surface.TFrame")
-        settings.grid(row=0, column=0, columnspan=2, sticky=E + W, padx=12, pady=(12, 6))
+        settings.grid(row=1, column=0, columnspan=2, sticky=E + W, padx=12, pady=(12, 6))
         settings.columnconfigure(1, weight=1)
 
         ttk.Label(settings, text="Dossier").grid(row=0, column=0, sticky=W, padx=(0, 8))
@@ -1231,7 +1236,7 @@ class ScreenshotManager:
         )
 
         left_panel = ttk.Frame(self.root, padding=(12, 10), style="Surface.TFrame")
-        left_panel.grid(row=1, column=0, sticky=N + S + W, padx=(12, 6), pady=6)
+        left_panel.grid(row=2, column=0, sticky=N + S + W, padx=(12, 6), pady=6)
         left_panel.rowconfigure(1, weight=1)
 
         ttk.Label(left_panel, text="Historique", style="Title.TLabel").grid(row=0, column=0, sticky=W, pady=(0, 8))
@@ -1264,7 +1269,7 @@ class ScreenshotManager:
         ttk.Button(left_panel, text="Supprimer", command=self.delete_selected_image).grid(row=6, column=0, sticky=E + W, pady=(6, 0))
 
         preview_panel = ttk.Frame(self.root, padding=(12, 10), style="Surface.TFrame")
-        preview_panel.grid(row=1, column=1, sticky=N + S + E + W, padx=(6, 12), pady=6)
+        preview_panel.grid(row=2, column=1, sticky=N + S + E + W, padx=(6, 12), pady=6)
         preview_panel.rowconfigure(0, weight=1)
         preview_panel.columnconfigure(0, weight=1)
         self.preview_canvas = Canvas(preview_panel, background=palette["preview_bg"], highlightthickness=0)
@@ -1272,11 +1277,9 @@ class ScreenshotManager:
         self.preview_canvas.bind("<Configure>", lambda _event: self.show_selected())
 
         status = ttk.Label(self.root, textvariable=self.status_var, anchor=W, padding=(14, 7), style="Status.TLabel")
-        status.grid(row=2, column=0, columnspan=2, sticky=E + W, padx=12, pady=(6, 12))
+        status.grid(row=3, column=0, columnspan=2, sticky=E + W, padx=12, pady=(6, 12))
 
-        menu = Menu(self.root)
-        file_menu = Menu(menu, tearoff=False)
-        configure_menu_theme(menu, self.theme_var.get())
+        file_menu = Menu(self.root, tearoff=False)
         configure_menu_theme(file_menu, self.theme_var.get())
         file_menu.add_command(label="Capture mode choisi", command=self.take_screenshot)
         file_menu.add_command(label="Tout l'ecran", command=self.take_full_screenshot)
@@ -1287,10 +1290,8 @@ class ScreenshotManager:
         file_menu.add_command(label="Rafraichir", command=self.refresh_history)
         file_menu.add_separator()
         file_menu.add_command(label="Quitter", command=self.close)
-        menu.add_cascade(label="Fichier", menu=file_menu)
-        self.root.config(menu=menu)
-        self.menu = menu
         self.file_menu = file_menu
+        self.root.config(menu="")
         set_windows_title_bar_theme(self.root, self.theme_var.get())
         self.update_main_color_previews()
 
@@ -1319,6 +1320,15 @@ class ScreenshotManager:
         self.refresh_history()
         self.status_var.set(f"Configuration sauvegardee. Raccourci actif: {display_hotkey(normalized_hotkey)}")
 
+    def show_file_menu(self) -> None:
+        configure_menu_theme(self.file_menu, self.theme_var.get())
+        x = self.file_button.winfo_rootx()
+        y = self.file_button.winfo_rooty() + self.file_button.winfo_height()
+        try:
+            self.file_menu.tk_popup(x, y)
+        finally:
+            self.file_menu.grab_release()
+
     def theme_button_text(self) -> str:
         return "Theme clair" if self.theme_var.get() == "dark" else "Theme sombre"
 
@@ -1335,8 +1345,6 @@ class ScreenshotManager:
         apply_app_style(ttk.Style(self.root), theme)
         self.root.configure(background=palette["app_bg"])
         set_windows_title_bar_theme(self.root, theme)
-        if hasattr(self, "menu"):
-            configure_menu_theme(self.menu, theme)
         if hasattr(self, "file_menu"):
             configure_menu_theme(self.file_menu, theme)
         self.theme_button.configure(text=self.theme_button_text())

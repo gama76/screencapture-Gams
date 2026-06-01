@@ -21,7 +21,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='GestionnaireScreenshots_v18',
+    name='GestionnaireScreenshots_v18_1',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -40,5 +40,5 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='GestionnaireScreenshots_v18',
+    name='GestionnaireScreenshots_v18_1',
 )

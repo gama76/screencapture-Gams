@@ -18,13 +18,14 @@ Application Windows avec interface graphique pour capturer, organiser et annoter
 - Annulation dans l'editeur avec `Ctrl+Z`
 - Logos d'annotation: numero, warning, interdit, info, valide
 - Logos rendus avec anti-aliasing pour des bords plus propres
+- Verification de mise a jour au demarrage via un manifeste distant
 
 ## Lancement
 
 Version compilee actuelle:
 
 ```powershell
-.\dist\GestionnaireScreenshots_v7\GestionnaireScreenshots_v7.exe
+.\dist\GestionnaireScreenshots_v11\GestionnaireScreenshots_v11.exe
 ```
 
 Lanceur recommande:
@@ -66,6 +67,7 @@ Parametres sauvegardes dans `config.json`:
 - couleur du rectangle de selection
 - couleur par defaut de l'editeur
 - theme clair/sombre
+- URL du manifeste de mise a jour
 
 Exemples de raccourcis:
 
@@ -111,3 +113,27 @@ L'image peut ensuite etre collee dans Paint, Word, Teams, Discord ou tout autre 
 Depuis l'historique, selectionnez une image puis cliquez sur `Supprimer`.
 
 Une confirmation affiche le nom du fichier avant suppression definitive.
+
+## Mises A Jour
+
+L'application peut verifier automatiquement si une nouvelle version existe.
+
+Dans le champ `Mise a jour`, indiquez l'URL d'un manifeste JSON distant, puis cliquez sur `Verifier`.
+Si l'URL est sauvegardee, l'application refera la verification au prochain demarrage.
+
+Format du manifeste:
+
+```json
+{
+  "version": "0.12.0",
+  "download_url": "https://exemple.com/GestionnaireScreenshots.exe",
+  "notes": "Corrections et ameliorations"
+}
+```
+
+Regles:
+
+- `version` doit etre superieure a la version locale de l'application
+- `download_url` doit pointer vers le nouvel `.exe`
+- la mise a jour automatique fonctionne uniquement depuis la version compilee `.exe`
+- apres telechargement, l'application se ferme, remplace l'exe courant, puis redemarre

@@ -2,7 +2,12 @@ import ctypes
 import io
 import json
 import queue
+import subprocess
+import sys
+import tempfile
 import threading
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -37,6 +42,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageGrab, ImageOps, I
 
 
 APP_DIR = Path(__file__).resolve().parent
+APP_VERSION = "0.11.0"
 CONFIG_PATH = APP_DIR / "config.json"
 DEFAULT_CAPTURE_DIR = APP_DIR / "screenshots"
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp"}
@@ -144,6 +150,7 @@ def load_config() -> dict:
         "selection_color": "#00d1ff",
         "editor_color": "#ff3030",
         "theme": "light",
+        "update_manifest_url": "",
     }
 
 
@@ -315,6 +322,42 @@ def apply_app_style(style: ttk.Style, theme: str) -> None:
     style.map("TRadiobutton", background=[("active", palette["surface"])], foreground=[("active", palette["text"])])
     style.configure("TEntry", padding=5, fieldbackground=palette["surface_alt"], foreground=palette["text"])
     style.configure("TSpinbox", arrowsize=12, fieldbackground=palette["surface_alt"], foreground=palette["text"])
+
+
+def parse_version(version: str) -> tuple[int, ...]:
+    cleaned = version.strip().lower().lstrip("v")
+    parts = []
+    for part in cleaned.replace("-", ".").split("."):
+        digits = "".join(char for char in part if char.isdigit())
+        if digits:
+            parts.append(int(digits))
+    return tuple(parts or [0])
+
+
+def is_newer_version(remote_version: str, local_version: str) -> bool:
+    remote = parse_version(remote_version)
+    local = parse_version(local_version)
+    length = max(len(remote), len(local))
+    remote += (0,) * (length - len(remote))
+    local += (0,) * (length - len(local))
+    return remote > local
+
+
+def fetch_json(url: str) -> dict:
+    request = urllib.request.Request(url, headers={"User-Agent": f"GestionnaireScreenshots/{APP_VERSION}"})
+    with urllib.request.urlopen(request, timeout=10) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def download_file(url: str, target: Path) -> None:
+    request = urllib.request.Request(url, headers={"User-Agent": f"GestionnaireScreenshots/{APP_VERSION}"})
+    with urllib.request.urlopen(request, timeout=60) as response:
+        with target.open("wb") as file:
+            while True:
+                chunk = response.read(1024 * 1024)
+                if not chunk:
+                    break
+                file.write(chunk)
 
 
 class MSG(ctypes.Structure):
@@ -987,8 +1030,10 @@ class ScreenshotManager:
         self.selection_color_var = StringVar(value=valid_hex_color(self.config.get("selection_color", ""), "#00d1ff"))
         self.editor_color_var = StringVar(value=valid_hex_color(self.config.get("editor_color", ""), "#ff3030"))
         self.theme_var = StringVar(value=normalize_theme(self.config.get("theme", "light")))
+        self.update_manifest_var = StringVar(value=self.config.get("update_manifest_url", ""))
         self.folder_var = StringVar(value=str(self.capture_dir))
         self.status_var = StringVar(value="")
+        self.update_in_progress = False
         self.preview_image = None
         self.history_paths: list[Path] = []
         self.hotkey_listener = HotkeyListener(self.handle_hotkey_event)
@@ -997,6 +1042,7 @@ class ScreenshotManager:
         self.ensure_capture_dir()
         self.refresh_history()
         self.start_hotkey()
+        self.root.after(1200, self.check_for_updates_on_startup)
         self.root.protocol("WM_DELETE_WINDOW", self.close)
 
     def build_ui(self) -> None:
@@ -1059,6 +1105,15 @@ class ScreenshotManager:
         self.default_editor_color_preview.pack(side=LEFT, padx=(8, 4))
         self.default_editor_color_preview.bind("<Button-1>", lambda _event: self.choose_editor_color())
         ttk.Button(color_frame, text="Couleur", command=self.choose_editor_color).pack(side=LEFT)
+
+        ttk.Label(settings, text="Mise a jour").grid(row=4, column=0, sticky=W, padx=(0, 8), pady=(10, 0))
+        ttk.Entry(settings, textvariable=self.update_manifest_var).grid(row=4, column=1, sticky=E + W, pady=(10, 0))
+        ttk.Button(settings, text="Verifier", command=lambda: self.check_for_updates(manual=True)).grid(
+            row=4,
+            column=2,
+            padx=8,
+            pady=(10, 0),
+        )
 
         left_panel = ttk.Frame(self.root, padding=(12, 10), style="Surface.TFrame")
         left_panel.grid(row=1, column=0, sticky=N + S + W, padx=(12, 6), pady=6)
@@ -1136,6 +1191,7 @@ class ScreenshotManager:
         self.config["selection_color"] = self.selection_color_var.get()
         self.config["editor_color"] = self.editor_color_var.get()
         self.config["theme"] = self.theme_var.get()
+        self.config["update_manifest_url"] = self.update_manifest_var.get().strip()
         save_config(self.config)
         self.hotkey_listener.set_hotkey(normalized_hotkey)
         self.refresh_history()
@@ -1190,6 +1246,124 @@ class ScreenshotManager:
         ):
             preview.delete("all")
             preview.create_rectangle(2, 2, 26, 20, fill=color_var.get(), outline=color_var.get())
+
+    def check_for_updates_on_startup(self) -> None:
+        if self.update_manifest_var.get().strip():
+            self.check_for_updates(manual=False)
+
+    def check_for_updates(self, manual: bool = False) -> None:
+        manifest_url = self.update_manifest_var.get().strip()
+        if not manifest_url:
+            if manual:
+                messagebox.showinfo(
+                    "Mise a jour",
+                    "Ajoutez l'URL du manifeste de mise a jour, puis cliquez sur Verifier.",
+                )
+            return
+        self.config["update_manifest_url"] = manifest_url
+        save_config(self.config)
+        if self.update_in_progress:
+            return
+
+        self.update_in_progress = True
+        self.status_var.set("Verification des mises a jour...")
+
+        def worker() -> None:
+            try:
+                manifest = fetch_json(manifest_url)
+                result = ("ok", manifest)
+            except (OSError, urllib.error.URLError, json.JSONDecodeError, KeyError) as error:
+                result = ("error", str(error))
+            self.root.after(0, lambda: self.handle_update_check_result(result, manual))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def handle_update_check_result(self, result: tuple[str, object], manual: bool) -> None:
+        self.update_in_progress = False
+        status, payload = result
+        if status == "error":
+            self.status_var.set("Verification de mise a jour impossible.")
+            if manual:
+                messagebox.showerror("Mise a jour", str(payload))
+            return
+
+        manifest = payload
+        remote_version = str(manifest.get("version", "")).strip()
+        download_url = str(manifest.get("download_url", "")).strip()
+        notes = str(manifest.get("notes", "")).strip()
+        if not remote_version or not download_url:
+            self.status_var.set("Manifeste de mise a jour invalide.")
+            if manual:
+                messagebox.showerror("Mise a jour", "Le manifeste doit contenir `version` et `download_url`.")
+            return
+
+        if not is_newer_version(remote_version, APP_VERSION):
+            self.status_var.set(f"Application a jour: v{APP_VERSION}")
+            if manual:
+                messagebox.showinfo("Mise a jour", f"Vous utilisez deja la derniere version: v{APP_VERSION}.")
+            return
+
+        message = f"Une nouvelle version est disponible.\n\nVersion actuelle: v{APP_VERSION}\nNouvelle version: v{remote_version}"
+        if notes:
+            message += f"\n\n{notes}"
+        message += "\n\nTelecharger et installer maintenant ?"
+        if messagebox.askyesno("Mise a jour disponible", message):
+            self.download_and_install_update(remote_version, download_url)
+        else:
+            self.status_var.set(f"Mise a jour disponible: v{remote_version}")
+
+    def download_and_install_update(self, remote_version: str, download_url: str) -> None:
+        if not getattr(sys, "frozen", False):
+            messagebox.showinfo(
+                "Mise a jour",
+                "La mise a jour automatique est disponible uniquement depuis la version compilee .exe.",
+            )
+            return
+
+        self.update_in_progress = True
+        self.status_var.set(f"Telechargement de la version v{remote_version}...")
+
+        def worker() -> None:
+            try:
+                temp_dir = Path(tempfile.mkdtemp(prefix="screenshot_manager_update_"))
+                downloaded_exe = temp_dir / "GestionnaireScreenshots_update.exe"
+                download_file(download_url, downloaded_exe)
+                result = ("ok", downloaded_exe)
+            except (OSError, urllib.error.URLError) as error:
+                result = ("error", str(error))
+            self.root.after(0, lambda: self.handle_update_download_result(result))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def handle_update_download_result(self, result: tuple[str, object]) -> None:
+        self.update_in_progress = False
+        status, payload = result
+        if status == "error":
+            self.status_var.set("Telechargement de la mise a jour impossible.")
+            messagebox.showerror("Mise a jour", str(payload))
+            return
+
+        downloaded_exe = Path(payload)
+        current_exe = Path(sys.executable).resolve()
+        updater_path = downloaded_exe.with_name("install_update.bat")
+        updater_script = f"""@echo off
+setlocal
+set "NEW_EXE={downloaded_exe}"
+set "TARGET_EXE={current_exe}"
+timeout /t 2 /nobreak >nul
+copy /y "%NEW_EXE%" "%TARGET_EXE%" >nul
+start "" "%TARGET_EXE%"
+endlocal
+"""
+        updater_path.write_text(updater_script, encoding="utf-8")
+
+        messagebox.showinfo(
+            "Mise a jour",
+            "La mise a jour a ete telechargee. L'application va se fermer, remplacer l'exe, puis redemarrer.",
+        )
+        self.hotkey_listener.stop()
+        subprocess.Popen(["cmd", "/c", str(updater_path)], cwd=str(current_exe.parent), close_fds=True)
+        self.root.destroy()
 
     def choose_folder(self) -> None:
         selected = filedialog.askdirectory(initialdir=str(self.capture_dir if self.capture_dir.exists() else APP_DIR))

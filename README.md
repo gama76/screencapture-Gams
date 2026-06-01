@@ -25,7 +25,7 @@ Application Windows avec interface graphique pour capturer, organiser et annoter
 Version compilee actuelle:
 
 ```powershell
-.\dist\GestionnaireScreenshots_v12\GestionnaireScreenshots_v12.exe
+.\dist\GestionnaireScreenshots_v14\GestionnaireScreenshots_v14.exe
 ```
 
 Lanceur recommande:
@@ -168,6 +168,9 @@ Format attendu:
 Regles:
 
 - `version` doit etre superieure a la version locale de l'application
+- idealement, le tag GitHub doit correspondre a `APP_VERSION` dans `screenshot_manager.py`
 - `download_url` doit pointer vers le nouvel `.exe`
 - la mise a jour automatique fonctionne uniquement depuis la version compilee `.exe`
 - apres telechargement, l'application se ferme, remplace l'exe courant, puis redemarre
+
+Si la mise a jour se repropose en boucle, cela signifie generalement que la release GitHub a un tag plus recent que la version inscrite dans l'exe. L'application memorise maintenant la derniere version installee pour eviter cette boucle.

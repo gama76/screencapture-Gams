@@ -1,6 +1,8 @@
 @echo off
 cd /d "%~dp0"
-if exist "dist\GestionnaireScreenshots_v13\GestionnaireScreenshots_v13.exe" (
+if exist "dist\GestionnaireScreenshots_v14\GestionnaireScreenshots_v14.exe" (
+  "dist\GestionnaireScreenshots_v14\GestionnaireScreenshots_v14.exe"
+) else if exist "dist\GestionnaireScreenshots_v13\GestionnaireScreenshots_v13.exe" (
   "dist\GestionnaireScreenshots_v13\GestionnaireScreenshots_v13.exe"
 ) else if exist "dist\GestionnaireScreenshots_v12\GestionnaireScreenshots_v12.exe" (
   "dist\GestionnaireScreenshots_v12\GestionnaireScreenshots_v12.exe"

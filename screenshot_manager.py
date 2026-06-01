@@ -153,6 +153,7 @@ def load_config() -> dict:
         "editor_color": "#ff3030",
         "theme": "light",
         "update_manifest_url": DEFAULT_UPDATE_MANIFEST_URL,
+        "installed_release_version": APP_VERSION,
     }
 
 
@@ -343,6 +344,13 @@ def is_newer_version(remote_version: str, local_version: str) -> bool:
     remote += (0,) * (length - len(remote))
     local += (0,) * (length - len(local))
     return remote > local
+
+
+def max_version(*versions: str) -> str:
+    valid_versions = [version for version in versions if version]
+    if not valid_versions:
+        return APP_VERSION
+    return max(valid_versions, key=parse_version)
 
 
 def fetch_json(url: str) -> dict:
@@ -1090,6 +1098,7 @@ class ScreenshotManager:
         self.editor_color_var = StringVar(value=valid_hex_color(self.config.get("editor_color", ""), "#ff3030"))
         self.theme_var = StringVar(value=normalize_theme(self.config.get("theme", "light")))
         self.update_manifest_var = StringVar(value=self.config.get("update_manifest_url") or DEFAULT_UPDATE_MANIFEST_URL)
+        self.installed_release_version = str(self.config.get("installed_release_version", APP_VERSION)).strip() or APP_VERSION
         self.folder_var = StringVar(value=str(self.capture_dir))
         self.status_var = StringVar(value="")
         self.update_in_progress = False
@@ -1103,6 +1112,9 @@ class ScreenshotManager:
         self.start_hotkey()
         self.root.after(1200, self.check_for_updates_on_startup)
         self.root.protocol("WM_DELETE_WINDOW", self.close)
+
+    def effective_app_version(self) -> str:
+        return max_version(APP_VERSION, self.installed_release_version)
 
     def build_ui(self) -> None:
         palette = THEMES[self.theme_var.get()]
@@ -1369,13 +1381,14 @@ class ScreenshotManager:
                 )
             return
 
-        if not is_newer_version(remote_version, APP_VERSION):
-            self.status_var.set(f"Application a jour: v{APP_VERSION}")
+        current_version = self.effective_app_version()
+        if not is_newer_version(remote_version, current_version):
+            self.status_var.set(f"Application a jour: v{current_version}")
             if manual:
-                messagebox.showinfo("Mise a jour", f"Vous utilisez deja la derniere version: v{APP_VERSION}.")
+                messagebox.showinfo("Mise a jour", f"Vous utilisez deja la derniere version: v{current_version}.")
             return
 
-        message = f"Une nouvelle version est disponible.\n\nVersion actuelle: v{APP_VERSION}\nNouvelle version: v{remote_version}"
+        message = f"Une nouvelle version est disponible.\n\nVersion actuelle: v{current_version}\nNouvelle version: v{remote_version}"
         if notes:
             message += f"\n\n{notes}"
         message += "\n\nTelecharger et installer maintenant ?"
@@ -1393,6 +1406,7 @@ class ScreenshotManager:
             return
 
         self.update_in_progress = True
+        self.pending_update_version = remote_version
         self.status_var.set(f"Telechargement de la version v{remote_version}...")
 
         def worker() -> None:
@@ -1416,6 +1430,9 @@ class ScreenshotManager:
             return
 
         downloaded_exe = Path(payload)
+        self.installed_release_version = str(getattr(self, "pending_update_version", "") or self.installed_release_version)
+        self.config["installed_release_version"] = self.installed_release_version
+        save_config(self.config)
         current_exe = Path(sys.executable).resolve()
         updater_path = downloaded_exe.with_name("install_update.bat")
         updater_script = f"""@echo off

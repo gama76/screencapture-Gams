@@ -33,7 +33,7 @@ from tkinter import (
     ttk,
 )
 
-from PIL import Image, ImageDraw, ImageFont, ImageGrab, ImageOps, ImageTk
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageGrab, ImageOps, ImageTk
 
 
 APP_DIR = Path(__file__).resolve().parent
@@ -427,16 +427,17 @@ class ImageEditor(Toplevel):
         self.configure(background=self.palette["editor_bg"])
         toolbar = ttk.Frame(self, padding=(10, 8), style="Surface.TFrame")
         toolbar.pack(side=TOP, fill=X)
-        for column in range(8):
+        for column in range(9):
             toolbar.columnconfigure(column, weight=0)
-        toolbar.columnconfigure(7, weight=1)
+        toolbar.columnconfigure(8, weight=1)
 
         ttk.Label(toolbar, text="Outils", style="Title.TLabel").grid(row=0, column=0, sticky=W, padx=(0, 10))
         self.icon_button(toolbar, "Dessin", "draw", lambda: self.set_mode("draw")).grid(row=0, column=1, padx=2, pady=2)
         self.icon_button(toolbar, "Cadre", "frame", lambda: self.set_mode("frame")).grid(row=0, column=2, padx=2, pady=2)
         self.icon_button(toolbar, "Recadrer", "crop", lambda: self.set_mode("crop")).grid(row=0, column=3, padx=2, pady=2)
-        ttk.Label(toolbar, text="Trait").grid(row=0, column=4, sticky=E, padx=(12, 4))
-        ttk.Spinbox(toolbar, from_=1, to=50, width=4, textvariable=self.brush_size).grid(row=0, column=5, padx=2, pady=2)
+        self.icon_button(toolbar, "Flouter", "blur", lambda: self.set_mode("blur")).grid(row=0, column=4, padx=2, pady=2)
+        ttk.Label(toolbar, text="Trait").grid(row=0, column=5, sticky=E, padx=(12, 4))
+        ttk.Spinbox(toolbar, from_=1, to=50, width=4, textvariable=self.brush_size).grid(row=0, column=6, padx=2, pady=2)
         self.editor_color_preview = Canvas(
             toolbar,
             width=28,
@@ -445,9 +446,9 @@ class ImageEditor(Toplevel):
             highlightthickness=1,
             highlightbackground=self.palette["border"],
         )
-        self.editor_color_preview.grid(row=0, column=6, padx=(12, 4), pady=2)
+        self.editor_color_preview.grid(row=0, column=7, padx=(12, 4), pady=2)
         self.editor_color_preview.bind("<Button-1>", lambda _event: self.choose_tool_color())
-        self.icon_button(toolbar, "Couleur", "color", self.choose_tool_color).grid(row=0, column=7, sticky=W, padx=2, pady=2)
+        self.icon_button(toolbar, "Couleur", "color", self.choose_tool_color).grid(row=0, column=8, sticky=W, padx=2, pady=2)
 
         ttk.Label(toolbar, text="Actions", style="Title.TLabel").grid(row=1, column=0, sticky=W, padx=(0, 10), pady=(6, 0))
         self.icon_button(toolbar, "Gauche", "rotate_left", lambda: self.transform("rotate_left")).grid(row=1, column=1, padx=2, pady=(6, 2))
@@ -498,6 +499,7 @@ class ImageEditor(Toplevel):
             "draw",
             "frame",
             "crop",
+            "blur",
             "color",
             "rotate_left",
             "rotate_right",
@@ -530,6 +532,12 @@ class ImageEditor(Toplevel):
         elif name == "crop":
             draw.line((7, 3, 7, 17, 21, 17), fill=slate, width=3)
             draw.line((3, 7, 17, 7, 17, 21), fill=blue, width=3)
+        elif name == "blur":
+            draw.rectangle((5, 5, 19, 19), outline=blue, width=2)
+            draw.ellipse((7, 7, 10, 10), fill=slate)
+            draw.ellipse((14, 7, 17, 10), fill=slate)
+            draw.ellipse((10, 13, 13, 16), fill=slate)
+            draw.line((6, 18, 18, 6), fill=(148, 163, 184, 255), width=2)
         elif name == "color":
             draw.ellipse((4, 4, 20, 20), fill=(255, 255, 255, 255), outline=slate, width=2)
             draw.pieslice((5, 5, 19, 19), 20, 140, fill=red)
@@ -583,6 +591,7 @@ class ImageEditor(Toplevel):
             "crop": "Recadrage actif: tirez un rectangle sur l'image.",
             "draw": "Dessin actif: maintenez le clic pour tracer.",
             "frame": "Cadre actif: tirez un rectangle sur l'image.",
+            "blur": "Flou actif: tirez un rectangle sur la zone a flouter.",
             "number": "Numero actif: cliquez pour placer le marqueur. Le numero avance automatiquement.",
             "warning": "Warning actif: cliquez pour placer le pictogramme.",
             "forbidden": "Interdit actif: cliquez pour placer le pictogramme.",
@@ -661,7 +670,7 @@ class ImageEditor(Toplevel):
 
     def on_press(self, event) -> None:
         point = self.canvas_to_image(event.x, event.y)
-        if self.state.mode in {"crop", "frame"}:
+        if self.state.mode in {"crop", "frame", "blur"}:
             self.state.crop_start = point
             if self.state.crop_rect:
                 self.canvas.delete(self.state.crop_rect)
@@ -801,7 +810,7 @@ class ImageEditor(Toplevel):
 
     def on_drag(self, event) -> None:
         point = self.canvas_to_image(event.x, event.y)
-        if self.state.mode in {"crop", "frame"} and self.state.crop_start:
+        if self.state.mode in {"crop", "frame", "blur"} and self.state.crop_start:
             if self.state.crop_rect:
                 self.canvas.delete(self.state.crop_rect)
             x1, y1 = self.image_to_canvas(*self.state.crop_start)
@@ -825,7 +834,7 @@ class ImageEditor(Toplevel):
             self.render()
 
     def on_release(self, event) -> None:
-        if self.state.mode in {"crop", "frame"} and self.state.crop_start:
+        if self.state.mode in {"crop", "frame", "blur"} and self.state.crop_start:
             end = self.canvas_to_image(event.x, event.y)
             x_values = sorted((self.state.crop_start[0], end[0]))
             y_values = sorted((self.state.crop_start[1], end[1]))
@@ -834,7 +843,7 @@ class ImageEditor(Toplevel):
                 if self.state.mode == "crop":
                     self.state.image = self.state.image.crop((x_values[0], y_values[0], x_values[1], y_values[1]))
                     self.status.set("Image recadree")
-                else:
+                elif self.state.mode == "frame":
                     draw = ImageDraw.Draw(self.state.image)
                     size = max(1, int(self.brush_size.get() or 1))
                     draw.rectangle(
@@ -843,6 +852,12 @@ class ImageEditor(Toplevel):
                         width=size,
                     )
                     self.status.set("Cadre ajoute")
+                else:
+                    blur_box = (x_values[0], y_values[0], x_values[1], y_values[1])
+                    region = self.state.image.crop(blur_box)
+                    blurred = region.filter(ImageFilter.GaussianBlur(radius=10))
+                    self.state.image.paste(blurred, blur_box)
+                    self.status.set("Zone floutee")
             self.state.crop_start = None
             self.state.crop_rect = None
             self.render()

@@ -14,7 +14,7 @@ Application Windows avec interface graphique pour capturer, organiser et annoter
 - Apercu des images
 - Copie d'une image dans le presse-papiers Windows
 - Suppression d'une image depuis l'historique avec confirmation
-- Edition: dessin, cadres colores, recadrage, rotation, miroir, niveaux de gris
+- Edition: dessin, cadres colores, floutage de zone, recadrage, rotation, miroir, niveaux de gris
 - Annulation dans l'editeur avec `Ctrl+Z`
 - Logos d'annotation: numero, warning, interdit, info, valide
 - Logos rendus avec anti-aliasing pour des bords plus propres
@@ -83,6 +83,7 @@ Outils disponibles:
 
 - `Dessin`: tracer librement sur l'image
 - `Cadre`: tirer un rectangle colore
+- `Flouter`: tirer un rectangle sur une zone a flouter
 - `Recadrer`: selectionner une zone a conserver
 - `Couleur`: choisir la couleur des annotations
 - `Trait`: epaisseur du dessin ou du cadre

@@ -41,8 +41,8 @@ from tkinter import (
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageGrab, ImageOps, ImageTk
 
 
-APP_DIR = Path(__file__).resolve().parent
-APP_VERSION = "0.12.0"
+APP_DIR = Path(".")
+APP_VERSION = "0.16.0"
 DEFAULT_UPDATE_REPO_URL = "https://github.com/gama76/screencapture-Gams"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/gama76/screencapture-Gams/releases/latest"
 CONFIG_PATH = APP_DIR / "config.json"
@@ -142,7 +142,12 @@ for code in range(ord("0"), ord("9") + 1):
 def load_config() -> dict:
     if CONFIG_PATH.exists():
         try:
-            return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+            config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+            capture_dir = str(config.get("capture_dir", ""))
+            normalized_capture_dir = capture_dir.replace("/", "\\").lower()
+            if "\\_internal\\screenshots" in normalized_capture_dir:
+                config["capture_dir"] = "screenshots"
+            return config
         except (json.JSONDecodeError, OSError):
             pass
     return {
@@ -1484,7 +1489,8 @@ endlocal
         self.root.destroy()
 
     def choose_folder(self) -> None:
-        selected = filedialog.askdirectory(initialdir=str(self.capture_dir if self.capture_dir.exists() else APP_DIR))
+        initial_dir = self.capture_dir if self.capture_dir.exists() else Path(".")
+        selected = filedialog.askdirectory(initialdir=str(initial_dir))
         if selected:
             self.folder_var.set(selected)
             self.apply_settings()

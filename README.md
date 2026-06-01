@@ -8,6 +8,7 @@ Application Windows avec interface graphique pour capturer, organiser et annoter
 - Capture de tout l'ecran ou d'une zone selectionnee
 - Raccourci global configurable, par defaut `Ctrl+Shift+S`
 - Dossier de sortie configurable
+- Par defaut, le dossier `screenshots` est cree en chemin relatif dans `./screenshots`
 - Couleur configurable pour le rectangle de selection de zone
 - Theme clair ou sombre, sauvegarde automatiquement
 - Historique automatique des images du dossier
@@ -25,7 +26,7 @@ Application Windows avec interface graphique pour capturer, organiser et annoter
 Version compilee actuelle:
 
 ```powershell
-.\dist\GestionnaireScreenshots_v15\GestionnaireScreenshots_v15.exe
+.\dist\GestionnaireScreenshots_v17\GestionnaireScreenshots_v17.exe
 ```
 
 Lanceur recommande:
@@ -68,6 +69,8 @@ Parametres sauvegardes dans `config.json`:
 - couleur par defaut de l'editeur
 - theme clair/sombre
 - URL du manifeste de mise a jour
+
+Par defaut, `config.json` et `screenshots` sont crees dans `./`, c'est-a-dire le dossier depuis lequel l'application est lancee.
 
 Exemples de raccourcis:
 

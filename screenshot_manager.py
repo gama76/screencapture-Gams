@@ -43,7 +43,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageGrab, ImageOps, I
 
 
 APP_DIR = Path(".")
-APP_VERSION = "0.17.0"
+APP_VERSION = "0.18.0"
 DEFAULT_UPDATE_REPO_URL = "https://github.com/gama76/screencapture-Gams"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/gama76/screencapture-Gams/releases/latest"
 CONFIG_PATH = APP_DIR / "config.json"
@@ -377,6 +377,41 @@ def download_file(url: str, target: Path) -> None:
                 file.write(chunk)
 
 
+def set_windows_title_bar_theme(window, theme: str) -> None:
+    if sys.platform != "win32":
+        return
+    try:
+        window.update_idletasks()
+        hwnd = ctypes.windll.user32.GetParent(window.winfo_id())
+        if not hwnd:
+            hwnd = window.winfo_id()
+        value = ctypes.c_int(1 if normalize_theme(theme) == "dark" else 0)
+        # DWMWA_USE_IMMERSIVE_DARK_MODE: 20 on recent Windows, 19 on older Windows 10 builds.
+        for attribute in (20, 19):
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                ctypes.c_void_p(hwnd),
+                ctypes.c_uint(attribute),
+                ctypes.byref(value),
+                ctypes.sizeof(value),
+            )
+    except Exception:
+        return
+
+
+def configure_menu_theme(menu: Menu, theme: str) -> None:
+    palette = THEMES[normalize_theme(theme)]
+    try:
+        menu.configure(
+            background=palette["surface"],
+            foreground=palette["text"],
+            activebackground=palette["button_active"],
+            activeforeground=palette["text"],
+            borderwidth=0,
+        )
+    except Exception:
+        pass
+
+
 def github_repo_url_to_latest_release_api(url: str) -> str:
     normalized = url.strip().rstrip("/")
     prefix = "https://github.com/"
@@ -542,6 +577,7 @@ class ImageEditor(Toplevel):
         self.icons = self.build_icons()
 
         self.configure(background=self.palette["editor_bg"])
+        set_windows_title_bar_theme(self, self.theme)
         toolbar = ttk.Frame(self, padding=(10, 8), style="Surface.TFrame")
         toolbar.pack(side=TOP, fill=X)
         for column in range(9):
@@ -1240,6 +1276,8 @@ class ScreenshotManager:
 
         menu = Menu(self.root)
         file_menu = Menu(menu, tearoff=False)
+        configure_menu_theme(menu, self.theme_var.get())
+        configure_menu_theme(file_menu, self.theme_var.get())
         file_menu.add_command(label="Capture mode choisi", command=self.take_screenshot)
         file_menu.add_command(label="Tout l'ecran", command=self.take_full_screenshot)
         file_menu.add_command(label="Selection zone", command=self.start_area_screenshot)
@@ -1251,6 +1289,9 @@ class ScreenshotManager:
         file_menu.add_command(label="Quitter", command=self.close)
         menu.add_cascade(label="Fichier", menu=file_menu)
         self.root.config(menu=menu)
+        self.menu = menu
+        self.file_menu = file_menu
+        set_windows_title_bar_theme(self.root, self.theme_var.get())
         self.update_main_color_previews()
 
     def ensure_capture_dir(self) -> None:
@@ -1293,6 +1334,11 @@ class ScreenshotManager:
         palette = THEMES[theme]
         apply_app_style(ttk.Style(self.root), theme)
         self.root.configure(background=palette["app_bg"])
+        set_windows_title_bar_theme(self.root, theme)
+        if hasattr(self, "menu"):
+            configure_menu_theme(self.menu, theme)
+        if hasattr(self, "file_menu"):
+            configure_menu_theme(self.file_menu, theme)
         self.theme_button.configure(text=self.theme_button_text())
         self.history_list.configure(
             background=palette["list_bg"],

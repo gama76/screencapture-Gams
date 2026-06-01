@@ -11,6 +11,7 @@ Application Windows avec interface graphique pour capturer, organiser et annoter
 - Par defaut, le dossier `screenshots` est cree en chemin relatif dans `./screenshots`
 - Couleur configurable pour le rectangle de selection de zone
 - Theme clair ou sombre, sauvegarde automatiquement
+- Barre de titre Windows et menu harmonises avec le theme quand le systeme le permet
 - Historique automatique des images du dossier
 - Apercu des images
 - Copie d'une image dans le presse-papiers Windows
@@ -27,7 +28,7 @@ Application Windows avec interface graphique pour capturer, organiser et annoter
 Version compilee actuelle:
 
 ```powershell
-.\dist\GestionnaireScreenshots_v17\GestionnaireScreenshots_v17.exe
+.\dist\GestionnaireScreenshots_v18\GestionnaireScreenshots_v18.exe
 ```
 
 Lanceur recommande:

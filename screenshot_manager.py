@@ -43,7 +43,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageGrab, ImageOps, I
 
 
 APP_DIR = Path(".")
-APP_VERSION = "0.18.1"
+APP_VERSION = "0.19.0"
 DEFAULT_UPDATE_REPO_URL = "https://github.com/gama76/screencapture-Gams"
 DEFAULT_UPDATE_MANIFEST_URL = "https://api.github.com/repos/gama76/screencapture-Gams/releases/latest"
 CONFIG_PATH = APP_DIR / "config.json"
@@ -320,13 +320,16 @@ def apply_app_style(style: ttk.Style, theme: str) -> None:
     style.configure("TFrame", background=palette["app_bg"])
     style.configure("Surface.TFrame", background=palette["surface"], relief="flat")
     style.configure("TLabel", background=palette["surface"], foreground=palette["text"])
-    style.configure("Title.TLabel", background=palette["surface"], foreground=palette["text"], font=("Segoe UI", 12, "bold"))
+    style.configure("Title.TLabel", background=palette["surface"], foreground=palette["text"], font=("Segoe UI", 11, "bold"))
+    style.configure("Muted.TLabel", background=palette["surface"], foreground=palette["muted"], font=("Segoe UI", 9))
     style.configure("Status.TLabel", background=palette["surface"], foreground=palette["muted"])
-    style.configure("TButton", padding=(10, 6), background=palette["button"], foreground=palette["text"])
+    style.configure("TButton", padding=(7, 4), background=palette["button"], foreground=palette["text"])
     style.map("TButton", background=[("active", palette["button_active"])], foreground=[("active", palette["text"])])
-    style.configure("Tool.TButton", padding=(8, 5), background=palette["button"], foreground=palette["text"])
+    style.configure("Tool.TButton", padding=(6, 3), background=palette["button"], foreground=palette["text"])
     style.map("Tool.TButton", background=[("active", palette["button_active"])], foreground=[("active", palette["text"])])
-    style.configure("Accent.TButton", padding=(12, 7), background=palette["accent"], foreground="#ffffff")
+    style.configure("Small.TButton", padding=(5, 3), background=palette["button"], foreground=palette["text"], font=("Segoe UI", 9))
+    style.map("Small.TButton", background=[("active", palette["button_active"])], foreground=[("active", palette["text"])])
+    style.configure("Accent.TButton", padding=(9, 5), background=palette["accent"], foreground="#ffffff")
     style.map("Accent.TButton", background=[("active", palette["accent_active"])], foreground=[("active", "#ffffff")])
     style.configure("TRadiobutton", background=palette["surface"], foreground=palette["text"])
     style.map("TRadiobutton", background=[("active", palette["surface"])], foreground=[("active", palette["text"])])
@@ -410,6 +413,51 @@ def configure_menu_theme(menu: Menu, theme: str) -> None:
         )
     except Exception:
         pass
+
+
+class Tooltip:
+    def __init__(self, widget, text: str, theme: str = "light"):
+        self.widget = widget
+        self.text = text
+        self.theme = normalize_theme(theme)
+        self.window = None
+        self.after_id = None
+        widget.bind("<Enter>", self.schedule, add="+")
+        widget.bind("<Leave>", self.hide, add="+")
+        widget.bind("<ButtonPress>", self.hide, add="+")
+
+    def schedule(self, _event=None) -> None:
+        self.cancel()
+        self.after_id = self.widget.after(450, self.show)
+
+    def cancel(self) -> None:
+        if self.after_id:
+            self.widget.after_cancel(self.after_id)
+            self.after_id = None
+
+    def show(self) -> None:
+        if self.window or not self.text:
+            return
+        palette = THEMES[self.theme]
+        x = self.widget.winfo_rootx() + self.widget.winfo_width() // 2
+        y = self.widget.winfo_rooty() + self.widget.winfo_height() + 8
+        self.window = Toplevel(self.widget)
+        self.window.wm_overrideredirect(True)
+        self.window.wm_geometry(f"+{x}+{y}")
+        label = ttk.Label(
+            self.window,
+            text=self.text,
+            padding=(7, 4),
+            background=palette["surface_alt"],
+            foreground=palette["text"],
+        )
+        label.pack()
+
+    def hide(self, _event=None) -> None:
+        self.cancel()
+        if self.window:
+            self.window.destroy()
+            self.window = None
 
 
 def github_repo_url_to_latest_release_api(url: str) -> str:
@@ -562,8 +610,8 @@ class ImageEditor(Toplevel):
     def __init__(self, master, image_path: Path, on_saved, initial_color: str = "#ff3030", theme: str = "light"):
         super().__init__(master)
         self.title(f"Edition - {image_path.name}")
-        self.geometry("1060x760")
-        self.minsize(720, 560)
+        self.geometry("1080x740")
+        self.minsize(820, 560)
         self.on_saved = on_saved
         self.state = EditorState(Image.open(image_path).convert("RGB"), image_path)
         self.state.undo_stack = []
@@ -578,51 +626,52 @@ class ImageEditor(Toplevel):
 
         self.configure(background=self.palette["editor_bg"])
         set_windows_title_bar_theme(self, self.theme)
-        toolbar = ttk.Frame(self, padding=(10, 8), style="Surface.TFrame")
+        toolbar = ttk.Frame(self, padding=(8, 6), style="Surface.TFrame")
         toolbar.pack(side=TOP, fill=X)
-        for column in range(9):
+        for column in range(10):
             toolbar.columnconfigure(column, weight=0)
-        toolbar.columnconfigure(8, weight=1)
+        toolbar.columnconfigure(9, weight=1)
 
         ttk.Label(toolbar, text="Outils", style="Title.TLabel").grid(row=0, column=0, sticky=W, padx=(0, 10))
-        self.icon_button(toolbar, "Dessin", "draw", lambda: self.set_mode("draw")).grid(row=0, column=1, padx=2, pady=2)
-        self.icon_button(toolbar, "Cadre", "frame", lambda: self.set_mode("frame")).grid(row=0, column=2, padx=2, pady=2)
-        self.icon_button(toolbar, "Recadrer", "crop", lambda: self.set_mode("crop")).grid(row=0, column=3, padx=2, pady=2)
-        self.icon_button(toolbar, "Flouter", "blur", lambda: self.set_mode("blur")).grid(row=0, column=4, padx=2, pady=2)
-        ttk.Label(toolbar, text="Trait").grid(row=0, column=5, sticky=E, padx=(12, 4))
-        ttk.Spinbox(toolbar, from_=1, to=50, width=4, textvariable=self.brush_size).grid(row=0, column=6, padx=2, pady=2)
+        self.icon_button(toolbar, "Trace", "draw", lambda: self.set_mode("draw")).grid(row=0, column=1, padx=1, pady=1)
+        self.icon_button(toolbar, "Cadre", "frame", lambda: self.set_mode("frame")).grid(row=0, column=2, padx=1, pady=1)
+        self.icon_button(toolbar, "Crop", "crop", lambda: self.set_mode("crop")).grid(row=0, column=3, padx=1, pady=1)
+        self.icon_button(toolbar, "Flou", "blur", lambda: self.set_mode("blur")).grid(row=0, column=4, padx=1, pady=1)
+        self.icon_button(toolbar, "Zoom", "zoom", lambda: self.set_mode("zoom")).grid(row=0, column=5, padx=1, pady=1)
+        ttk.Label(toolbar, text="Trait").grid(row=0, column=6, sticky=E, padx=(10, 4))
+        ttk.Spinbox(toolbar, from_=1, to=50, width=4, textvariable=self.brush_size).grid(row=0, column=7, padx=1, pady=1)
         self.editor_color_preview = Canvas(
             toolbar,
-            width=28,
-            height=22,
+            width=24,
+            height=18,
             background=self.palette["surface"],
             highlightthickness=1,
             highlightbackground=self.palette["border"],
         )
-        self.editor_color_preview.grid(row=0, column=7, padx=(12, 4), pady=2)
+        self.editor_color_preview.grid(row=0, column=8, padx=(10, 4), pady=1)
         self.editor_color_preview.bind("<Button-1>", lambda _event: self.choose_tool_color())
-        self.icon_button(toolbar, "Couleur", "color", self.choose_tool_color).grid(row=0, column=8, sticky=W, padx=2, pady=2)
+        self.icon_button(toolbar, "Coul.", "color", self.choose_tool_color).grid(row=0, column=9, sticky=W, padx=1, pady=1)
 
-        ttk.Label(toolbar, text="Actions", style="Title.TLabel").grid(row=1, column=0, sticky=W, padx=(0, 10), pady=(6, 0))
-        self.icon_button(toolbar, "Gauche", "rotate_left", lambda: self.transform("rotate_left")).grid(row=1, column=1, padx=2, pady=(6, 2))
-        self.icon_button(toolbar, "Droite", "rotate_right", lambda: self.transform("rotate_right")).grid(row=1, column=2, padx=2, pady=(6, 2))
-        self.icon_button(toolbar, "Miroir", "flip", lambda: self.transform("flip")).grid(row=1, column=3, padx=2, pady=(6, 2))
-        self.icon_button(toolbar, "Gris", "gray", lambda: self.transform("gray")).grid(row=1, column=4, padx=2, pady=(6, 2))
-        self.icon_button(toolbar, "Copier", "copy", self.copy_current_image).grid(row=1, column=5, padx=2, pady=(6, 2))
-        self.icon_button(toolbar, "Copie", "save_copy", self.save_copy).grid(row=1, column=6, padx=2, pady=(6, 2))
-        self.icon_button(toolbar, "Sauver", "save", self.save, style="Accent.TButton").grid(row=1, column=7, sticky=W, padx=2, pady=(6, 2))
-        ttk.Button(toolbar, text="Annuler", command=self.undo).grid(row=3, column=5, padx=2, pady=(6, 2))
+        ttk.Label(toolbar, text="Logos", style="Title.TLabel").grid(row=1, column=0, sticky=W, padx=(0, 10), pady=(5, 0))
+        self.icon_button(toolbar, "No", "number", lambda: self.set_mode("number")).grid(row=1, column=1, padx=1, pady=(5, 1))
+        self.icon_button(toolbar, "Warn", "warning", lambda: self.set_mode("warning")).grid(row=1, column=2, padx=1, pady=(5, 1))
+        self.icon_button(toolbar, "Stop", "forbidden", lambda: self.set_mode("forbidden")).grid(row=1, column=3, padx=1, pady=(5, 1))
+        self.icon_button(toolbar, "Info", "info", lambda: self.set_mode("info")).grid(row=1, column=4, padx=1, pady=(5, 1))
+        self.icon_button(toolbar, "OK", "check", lambda: self.set_mode("check")).grid(row=1, column=5, padx=1, pady=(5, 1))
+        ttk.Label(toolbar, text="N").grid(row=1, column=6, sticky=E, padx=(10, 2), pady=(5, 1))
+        ttk.Spinbox(toolbar, from_=1, to=999, width=5, textvariable=self.marker_number).grid(row=1, column=7, sticky=W, padx=1, pady=(5, 1))
+        ttk.Label(toolbar, text="Taille").grid(row=1, column=8, sticky=E, padx=(10, 2), pady=(5, 1))
+        ttk.Spinbox(toolbar, from_=1, to=50, width=4, textvariable=self.icon_size).grid(row=1, column=9, sticky=W, padx=1, pady=(5, 1))
 
-        ttk.Label(toolbar, text="Logos", style="Title.TLabel").grid(row=2, column=0, sticky=W, padx=(0, 10), pady=(6, 0))
-        self.icon_button(toolbar, "Numero", "number", lambda: self.set_mode("number")).grid(row=2, column=1, padx=2, pady=(6, 2))
-        ttk.Label(toolbar, text="N").grid(row=2, column=2, sticky=E, padx=(4, 2), pady=(6, 2))
-        ttk.Spinbox(toolbar, from_=1, to=999, width=5, textvariable=self.marker_number).grid(row=2, column=3, sticky=W, padx=2, pady=(6, 2))
-        ttk.Label(toolbar, text="Taille logo").grid(row=2, column=4, sticky=E, padx=(8, 2), pady=(6, 2))
-        ttk.Spinbox(toolbar, from_=1, to=50, width=4, textvariable=self.icon_size).grid(row=2, column=5, sticky=W, padx=2, pady=(6, 2))
-        self.icon_button(toolbar, "Warning", "warning", lambda: self.set_mode("warning")).grid(row=3, column=1, padx=2, pady=(6, 2))
-        self.icon_button(toolbar, "Interdit", "forbidden", lambda: self.set_mode("forbidden")).grid(row=3, column=2, padx=2, pady=(6, 2))
-        self.icon_button(toolbar, "Info", "info", lambda: self.set_mode("info")).grid(row=3, column=3, padx=2, pady=(6, 2))
-        self.icon_button(toolbar, "Valide", "check", lambda: self.set_mode("check")).grid(row=3, column=4, padx=2, pady=(6, 2))
+        ttk.Label(toolbar, text="Actions", style="Title.TLabel").grid(row=2, column=0, sticky=W, padx=(0, 10), pady=(5, 0))
+        self.icon_button(toolbar, "G.", "rotate_left", lambda: self.transform("rotate_left")).grid(row=2, column=1, padx=1, pady=(5, 1))
+        self.icon_button(toolbar, "D.", "rotate_right", lambda: self.transform("rotate_right")).grid(row=2, column=2, padx=1, pady=(5, 1))
+        self.icon_button(toolbar, "Miroir", "flip", lambda: self.transform("flip")).grid(row=2, column=3, padx=1, pady=(5, 1))
+        self.icon_button(toolbar, "Gris", "gray", lambda: self.transform("gray")).grid(row=2, column=4, padx=1, pady=(5, 1))
+        self.icon_button(toolbar, "Copier", "copy", self.copy_current_image).grid(row=2, column=5, padx=(10, 1), pady=(5, 1))
+        self.icon_button(toolbar, "Copie", "save_copy", self.save_copy).grid(row=2, column=6, padx=1, pady=(5, 1))
+        self.text_button(toolbar, "Undo", self.undo).grid(row=2, column=7, padx=1, pady=(5, 1))
+        self.icon_button(toolbar, "Sauver", "save", self.save, style="Accent.TButton").grid(row=2, column=8, sticky=W, padx=1, pady=(5, 1))
 
         self.canvas = Canvas(self, background=self.palette["canvas_bg"], highlightthickness=0)
         self.canvas.pack(side=TOP, fill=BOTH, expand=True)
@@ -638,14 +687,43 @@ class ImageEditor(Toplevel):
         self.render()
 
     def icon_button(self, parent, text: str, icon_name: str, command, style: str = "Tool.TButton") -> ttk.Button:
-        return ttk.Button(
+        tooltip_texts = {
+            "Trace": "Dessin libre",
+            "Cadre": "Ajouter un cadre",
+            "Crop": "Recadrer l'image",
+            "Flou": "Flouter une zone",
+            "Zoom": "Creer une etiquette zoomee",
+            "Coul.": "Choisir la couleur",
+            "No": "Marqueur numerote",
+            "Warn": "Pictogramme warning",
+            "Stop": "Pictogramme interdit",
+            "Info": "Pictogramme info",
+            "OK": "Pictogramme valide",
+            "G.": "Rotation a gauche",
+            "D.": "Rotation a droite",
+            "Miroir": "Retourner horizontalement",
+            "Gris": "Passer en niveaux de gris",
+            "Copier": "Copier dans le presse-papiers",
+            "Copie": "Sauvegarder une copie",
+            "Sauver": "Sauvegarder l'image",
+        }
+        button = ttk.Button(
             parent,
-            text=text,
             image=self.icons[icon_name],
-            compound=LEFT,
             command=command,
             style=style,
+            width=3,
         )
+        tooltip = tooltip_texts.get(text, text)
+        button.bind("<Enter>", lambda _event, label=tooltip: self.status.set(label))
+        Tooltip(button, tooltip, self.theme)
+        return button
+
+    def text_button(self, parent, text: str, command, style: str = "Small.TButton") -> ttk.Button:
+        button = ttk.Button(parent, text=text, command=command, style=style, width=5)
+        button.bind("<Enter>", lambda _event, label=text: self.status.set(label))
+        Tooltip(button, text, self.theme)
+        return button
 
     def build_icons(self) -> dict[str, ImageTk.PhotoImage]:
         return {name: ImageTk.PhotoImage(self.draw_toolbar_icon(name)) for name in (
@@ -653,6 +731,7 @@ class ImageEditor(Toplevel):
             "frame",
             "crop",
             "blur",
+            "zoom",
             "color",
             "rotate_left",
             "rotate_right",
@@ -691,6 +770,12 @@ class ImageEditor(Toplevel):
             draw.ellipse((14, 7, 17, 10), fill=slate)
             draw.ellipse((10, 13, 13, 16), fill=slate)
             draw.line((6, 18, 18, 6), fill=(148, 163, 184, 255), width=2)
+        elif name == "zoom":
+            draw.rectangle((4, 6, 13, 15), outline=blue, width=2)
+            draw.rectangle((10, 3, 21, 14), outline=slate, width=2)
+            draw.line((13, 9, 18, 9), fill=blue, width=2)
+            draw.line((16, 6, 16, 12), fill=blue, width=2)
+            draw.line((8, 15, 5, 20), fill=slate, width=2)
         elif name == "color":
             draw.ellipse((4, 4, 20, 20), fill=(255, 255, 255, 255), outline=slate, width=2)
             draw.pieslice((5, 5, 19, 19), 20, 140, fill=red)
@@ -745,6 +830,7 @@ class ImageEditor(Toplevel):
             "draw": "Dessin actif: maintenez le clic pour tracer.",
             "frame": "Cadre actif: tirez un rectangle sur l'image.",
             "blur": "Flou actif: tirez un rectangle sur la zone a flouter.",
+            "zoom": "Zoom actif: tirez un rectangle pour creer une etiquette agrandie.",
             "number": "Numero actif: cliquez pour placer le marqueur. Le numero avance automatiquement.",
             "warning": "Warning actif: cliquez pour placer le pictogramme.",
             "forbidden": "Interdit actif: cliquez pour placer le pictogramme.",
@@ -823,7 +909,7 @@ class ImageEditor(Toplevel):
 
     def on_press(self, event) -> None:
         point = self.canvas_to_image(event.x, event.y)
-        if self.state.mode in {"crop", "frame", "blur"}:
+        if self.state.mode in {"crop", "frame", "blur", "zoom"}:
             self.state.crop_start = point
             if self.state.crop_rect:
                 self.canvas.delete(self.state.crop_rect)
@@ -961,9 +1047,58 @@ class ImageEditor(Toplevel):
         draw.line(points, fill=(255, 255, 255, 255), width=width, joint="curve")
         return self.finish_marker(marker, size)
 
+    def add_zoom_label(self, box: tuple[int, int, int, int]) -> None:
+        image_width, image_height = self.state.image.size
+        x1, y1, x2, y2 = box
+        region = self.state.image.crop(box)
+        color = hex_to_rgb(self.tool_color.get())
+        line_width = max(2, int(self.brush_size.get() or 2))
+        margin = max(12, line_width * 4)
+        padding = max(6, line_width * 2)
+        available_width = max(40, image_width - margin * 2 - padding * 2)
+        available_height = max(40, image_height - margin * 2 - padding * 2)
+        scale = min(2.0, available_width / region.width, available_height / region.height)
+        scale = max(0.25, scale)
+        label_size = (max(1, int(region.width * scale)), max(1, int(region.height * scale)))
+        zoomed = region.resize(label_size, Image.Resampling.LANCZOS).convert("RGBA")
+
+        label_width = zoomed.width + padding * 2
+        label_height = zoomed.height + padding * 2
+
+        candidates = [
+            (x2 + margin, y1),
+            (x1 - margin - label_width, y1),
+            (x1, y2 + margin),
+            (x1, y1 - margin - label_height),
+        ]
+        label_x, label_y = candidates[-1]
+        for candidate_x, candidate_y in candidates:
+            if 0 <= candidate_x and candidate_x + label_width <= image_width and 0 <= candidate_y and candidate_y + label_height <= image_height:
+                label_x, label_y = candidate_x, candidate_y
+                break
+        label_x = max(0, min(image_width - label_width, label_x))
+        label_y = max(0, min(image_height - label_height, label_y))
+
+        overlay = Image.new("RGBA", self.state.image.size, (0, 0, 0, 0))
+        draw = ImageDraw.Draw(overlay)
+        shadow = 5
+        label_box = (label_x, label_y, label_x + label_width, label_y + label_height)
+        draw.rounded_rectangle(
+            (label_box[0] + shadow, label_box[1] + shadow, label_box[2] + shadow, label_box[3] + shadow),
+            radius=8,
+            fill=(0, 0, 0, 80),
+        )
+        source_center = ((x1 + x2) // 2, (y1 + y2) // 2)
+        label_center = (label_x + label_width // 2, label_y + label_height // 2)
+        draw.line((source_center, label_center), fill=(*color, 230), width=max(2, line_width))
+        draw.rounded_rectangle(label_box, radius=8, fill=(255, 255, 255, 245), outline=(*color, 255), width=line_width)
+        overlay.alpha_composite(zoomed, (label_x + padding, label_y + padding))
+        draw.rectangle(box, outline=(*color, 255), width=line_width)
+        self.state.image = Image.alpha_composite(self.state.image.convert("RGBA"), overlay).convert("RGB")
+
     def on_drag(self, event) -> None:
         point = self.canvas_to_image(event.x, event.y)
-        if self.state.mode in {"crop", "frame", "blur"} and self.state.crop_start:
+        if self.state.mode in {"crop", "frame", "blur", "zoom"} and self.state.crop_start:
             if self.state.crop_rect:
                 self.canvas.delete(self.state.crop_rect)
             x1, y1 = self.image_to_canvas(*self.state.crop_start)
@@ -987,7 +1122,7 @@ class ImageEditor(Toplevel):
             self.render()
 
     def on_release(self, event) -> None:
-        if self.state.mode in {"crop", "frame", "blur"} and self.state.crop_start:
+        if self.state.mode in {"crop", "frame", "blur", "zoom"} and self.state.crop_start:
             end = self.canvas_to_image(event.x, event.y)
             x_values = sorted((self.state.crop_start[0], end[0]))
             y_values = sorted((self.state.crop_start[1], end[1]))
@@ -1005,12 +1140,16 @@ class ImageEditor(Toplevel):
                         width=size,
                     )
                     self.status.set("Cadre ajoute")
-                else:
+                elif self.state.mode == "blur":
                     blur_box = (x_values[0], y_values[0], x_values[1], y_values[1])
                     region = self.state.image.crop(blur_box)
                     blurred = region.filter(ImageFilter.GaussianBlur(radius=10))
                     self.state.image.paste(blurred, blur_box)
                     self.status.set("Zone floutee")
+                else:
+                    zoom_box = (x_values[0], y_values[0], x_values[1], y_values[1])
+                    self.add_zoom_label(zoom_box)
+                    self.status.set("Etiquette zoomee ajoutee")
             self.state.crop_start = None
             self.state.crop_rect = None
             self.render()
@@ -1128,8 +1267,8 @@ class ScreenshotManager:
     def __init__(self, root: Tk):
         self.root = root
         self.root.title("Gestionnaire de screenshots")
-        self.root.geometry("1100x720")
-        self.root.minsize(880, 560)
+        self.root.geometry("1040x680")
+        self.root.minsize(860, 540)
         self.config = load_config()
         self.capture_dir = Path(self.config["capture_dir"])
         self.hotkey_var = StringVar(value=normalize_hotkey(self.config["hotkey"]))
@@ -1167,84 +1306,85 @@ class ScreenshotManager:
         self.root.columnconfigure(1, weight=1)
         self.root.rowconfigure(2, weight=1)
 
-        top_menu = ttk.Frame(self.root, padding=(10, 6), style="Surface.TFrame")
+        top_menu = ttk.Frame(self.root, padding=(8, 4), style="Surface.TFrame")
         top_menu.grid(row=0, column=0, columnspan=2, sticky=E + W)
-        self.file_button = ttk.Button(top_menu, text="Fichier", command=self.show_file_menu)
+        self.file_button = ttk.Button(top_menu, text="Fichier", command=self.show_file_menu, style="Small.TButton")
         self.file_button.pack(side=LEFT)
 
-        settings = ttk.Frame(self.root, padding=(14, 12), style="Surface.TFrame")
-        settings.grid(row=1, column=0, columnspan=2, sticky=E + W, padx=12, pady=(12, 6))
+        settings = ttk.Frame(self.root, padding=(10, 8), style="Surface.TFrame")
+        settings.grid(row=1, column=0, columnspan=2, sticky=E + W, padx=10, pady=(10, 5))
         settings.columnconfigure(1, weight=1)
 
         ttk.Label(settings, text="Dossier").grid(row=0, column=0, sticky=W, padx=(0, 8))
         ttk.Entry(settings, textvariable=self.folder_var).grid(row=0, column=1, sticky=E + W)
-        ttk.Button(settings, text="Choisir", command=self.choose_folder).grid(row=0, column=2, padx=8)
-        ttk.Button(settings, text="Ouvrir", command=self.open_folder).grid(row=0, column=3)
+        ttk.Button(settings, text="Choisir", command=self.choose_folder, style="Small.TButton").grid(row=0, column=2, padx=6)
+        ttk.Button(settings, text="Ouvrir", command=self.open_folder, style="Small.TButton").grid(row=0, column=3)
 
-        ttk.Label(settings, text="Raccourci").grid(row=1, column=0, sticky=W, padx=(0, 8), pady=(10, 0))
-        ttk.Entry(settings, textvariable=self.hotkey_var, width=24).grid(row=1, column=1, sticky=W, pady=(10, 0))
-        ttk.Button(settings, text="Appliquer", command=self.apply_settings).grid(row=1, column=2, padx=8, pady=(10, 0))
-        ttk.Button(settings, text="Capture mode choisi", style="Accent.TButton", command=self.take_screenshot).grid(
+        ttk.Label(settings, text="Raccourci").grid(row=1, column=0, sticky=W, padx=(0, 8), pady=(8, 0))
+        ttk.Entry(settings, textvariable=self.hotkey_var, width=22).grid(row=1, column=1, sticky=W, pady=(8, 0))
+        ttk.Button(settings, text="Appliquer", command=self.apply_settings, style="Small.TButton").grid(row=1, column=2, padx=6, pady=(8, 0))
+        ttk.Button(settings, text="Capture", style="Accent.TButton", command=self.take_screenshot).grid(
             row=1,
             column=3,
-            pady=(10, 0),
+            pady=(8, 0),
         )
 
         mode_frame = ttk.Frame(settings, style="Surface.TFrame")
-        mode_frame.grid(row=2, column=1, sticky=W, pady=(8, 0))
+        mode_frame.grid(row=2, column=1, sticky=W, pady=(7, 0))
         ttk.Radiobutton(mode_frame, text="Ecran complet", variable=self.capture_mode_var, value="full").pack(side=LEFT)
         ttk.Radiobutton(mode_frame, text="Zone", variable=self.capture_mode_var, value="area").pack(side=LEFT, padx=(12, 0))
-        ttk.Button(settings, text="Tout l'ecran", command=self.take_full_screenshot).grid(row=2, column=2, padx=8, pady=(8, 0))
-        ttk.Button(settings, text="Selection zone", command=self.start_area_screenshot).grid(row=2, column=3, pady=(8, 0))
-        self.theme_button = ttk.Button(settings, text=self.theme_button_text(), command=self.toggle_theme)
-        self.theme_button.grid(row=3, column=0, sticky=W, pady=(10, 0), padx=(0, 8))
+        ttk.Button(settings, text="Ecran", command=self.take_full_screenshot, style="Small.TButton").grid(row=2, column=2, padx=6, pady=(7, 0))
+        ttk.Button(settings, text="Zone", command=self.start_area_screenshot, style="Small.TButton").grid(row=2, column=3, pady=(7, 0))
+        self.theme_button = ttk.Button(settings, text=self.theme_button_text(), command=self.toggle_theme, style="Small.TButton")
+        self.theme_button.grid(row=3, column=0, sticky=W, pady=(8, 0), padx=(0, 8))
 
         color_frame = ttk.Frame(settings, style="Surface.TFrame")
-        color_frame.grid(row=3, column=1, columnspan=3, sticky=W, pady=(10, 0))
+        color_frame.grid(row=3, column=1, columnspan=3, sticky=W, pady=(8, 0))
         ttk.Label(color_frame, text="Rectangle zone").pack(side=LEFT)
         self.selection_color_preview = Canvas(
             color_frame,
-            width=28,
-            height=22,
+            width=24,
+            height=18,
             background=palette["surface"],
             highlightthickness=1,
             highlightbackground=palette["border"],
         )
-        self.selection_color_preview.pack(side=LEFT, padx=(8, 4))
+        self.selection_color_preview.pack(side=LEFT, padx=(7, 4))
         self.selection_color_preview.bind("<Button-1>", lambda _event: self.choose_selection_color())
-        ttk.Button(color_frame, text="Couleur", command=self.choose_selection_color).pack(side=LEFT, padx=(0, 18))
+        ttk.Button(color_frame, text="Couleur", command=self.choose_selection_color, style="Small.TButton").pack(side=LEFT, padx=(0, 16))
         ttk.Label(color_frame, text="Edition").pack(side=LEFT)
         self.default_editor_color_preview = Canvas(
             color_frame,
-            width=28,
-            height=22,
+            width=24,
+            height=18,
             background=palette["surface"],
             highlightthickness=1,
             highlightbackground=palette["border"],
         )
-        self.default_editor_color_preview.pack(side=LEFT, padx=(8, 4))
+        self.default_editor_color_preview.pack(side=LEFT, padx=(7, 4))
         self.default_editor_color_preview.bind("<Button-1>", lambda _event: self.choose_editor_color())
-        ttk.Button(color_frame, text="Couleur", command=self.choose_editor_color).pack(side=LEFT)
+        ttk.Button(color_frame, text="Couleur", command=self.choose_editor_color, style="Small.TButton").pack(side=LEFT)
 
-        ttk.Label(settings, text="Mise a jour").grid(row=4, column=0, sticky=W, padx=(0, 8), pady=(10, 0))
-        ttk.Entry(settings, textvariable=self.update_manifest_var).grid(row=4, column=1, sticky=E + W, pady=(10, 0))
-        ttk.Button(settings, text="Verifier", command=lambda: self.check_for_updates(manual=True)).grid(
+        ttk.Label(settings, text="Mise a jour").grid(row=4, column=0, sticky=W, padx=(0, 8), pady=(8, 0))
+        ttk.Entry(settings, textvariable=self.update_manifest_var).grid(row=4, column=1, sticky=E + W, pady=(8, 0))
+        ttk.Button(settings, text="Verifier", command=lambda: self.check_for_updates(manual=True), style="Small.TButton").grid(
             row=4,
             column=2,
-            padx=8,
-            pady=(10, 0),
+            padx=6,
+            pady=(8, 0),
         )
 
-        left_panel = ttk.Frame(self.root, padding=(12, 10), style="Surface.TFrame")
-        left_panel.grid(row=2, column=0, sticky=N + S + W, padx=(12, 6), pady=6)
+        left_panel = ttk.Frame(self.root, padding=(10, 8), style="Surface.TFrame")
+        left_panel.grid(row=2, column=0, sticky=N + S + W, padx=(10, 5), pady=5)
         left_panel.rowconfigure(1, weight=1)
+        left_panel.columnconfigure(0, weight=1)
 
         ttk.Label(left_panel, text="Historique", style="Title.TLabel").grid(row=0, column=0, sticky=W, pady=(0, 8))
         list_frame = ttk.Frame(left_panel, style="Surface.TFrame")
         list_frame.grid(row=1, column=0, sticky=N + S + E + W)
         self.history_list = Listbox(
             list_frame,
-            width=36,
+            width=30,
             exportselection=False,
             borderwidth=0,
             highlightthickness=1,
@@ -1262,22 +1402,26 @@ class ScreenshotManager:
         self.history_list.bind("<<ListboxSelect>>", lambda _event: self.show_selected())
         self.history_list.bind("<Double-Button-1>", lambda _event: self.edit_selected())
 
-        ttk.Button(left_panel, text="Rafraichir", command=self.refresh_history).grid(row=2, column=0, sticky=E + W, pady=(10, 0))
-        ttk.Button(left_panel, text="Copier l'image", command=self.copy_selected_image).grid(row=3, column=0, sticky=E + W, pady=(6, 0))
-        ttk.Button(left_panel, text="Modifier l'image", command=self.edit_selected).grid(row=4, column=0, sticky=E + W, pady=(6, 0))
-        ttk.Button(left_panel, text="Renommer", command=self.rename_selected_image).grid(row=5, column=0, sticky=E + W, pady=(6, 0))
-        ttk.Button(left_panel, text="Supprimer", command=self.delete_selected_image).grid(row=6, column=0, sticky=E + W, pady=(6, 0))
+        history_actions = ttk.Frame(left_panel, style="Surface.TFrame")
+        history_actions.grid(row=2, column=0, sticky=E + W, pady=(8, 0))
+        history_actions.columnconfigure(0, weight=1)
+        history_actions.columnconfigure(1, weight=1)
+        ttk.Button(history_actions, text="Rafraichir", command=self.refresh_history, style="Small.TButton").grid(row=0, column=0, sticky=E + W, padx=(0, 3), pady=(0, 5))
+        ttk.Button(history_actions, text="Copier", command=self.copy_selected_image, style="Small.TButton").grid(row=0, column=1, sticky=E + W, padx=(3, 0), pady=(0, 5))
+        ttk.Button(history_actions, text="Modifier", command=self.edit_selected, style="Small.TButton").grid(row=1, column=0, sticky=E + W, padx=(0, 3))
+        ttk.Button(history_actions, text="Renommer", command=self.rename_selected_image, style="Small.TButton").grid(row=1, column=1, sticky=E + W, padx=(3, 0))
+        ttk.Button(left_panel, text="Supprimer", command=self.delete_selected_image, style="Small.TButton").grid(row=3, column=0, sticky=E + W, pady=(6, 0))
 
-        preview_panel = ttk.Frame(self.root, padding=(12, 10), style="Surface.TFrame")
-        preview_panel.grid(row=2, column=1, sticky=N + S + E + W, padx=(6, 12), pady=6)
+        preview_panel = ttk.Frame(self.root, padding=(10, 8), style="Surface.TFrame")
+        preview_panel.grid(row=2, column=1, sticky=N + S + E + W, padx=(5, 10), pady=5)
         preview_panel.rowconfigure(0, weight=1)
         preview_panel.columnconfigure(0, weight=1)
         self.preview_canvas = Canvas(preview_panel, background=palette["preview_bg"], highlightthickness=0)
         self.preview_canvas.grid(row=0, column=0, sticky=N + S + E + W)
         self.preview_canvas.bind("<Configure>", lambda _event: self.show_selected())
 
-        status = ttk.Label(self.root, textvariable=self.status_var, anchor=W, padding=(14, 7), style="Status.TLabel")
-        status.grid(row=3, column=0, columnspan=2, sticky=E + W, padx=12, pady=(6, 12))
+        status = ttk.Label(self.root, textvariable=self.status_var, anchor=W, padding=(10, 5), style="Status.TLabel")
+        status.grid(row=3, column=0, columnspan=2, sticky=E + W, padx=10, pady=(5, 10))
 
         file_menu = Menu(self.root, tearoff=False)
         configure_menu_theme(file_menu, self.theme_var.get())

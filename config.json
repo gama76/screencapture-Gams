@@ -1,0 +1,11 @@
+{
+  "capture_dir": "screenshots",
+  "hotkey": "ctrl+shift+s",
+  "capture_mode": "full",
+  "selection_color": "#00d1ff",
+  "editor_color": "#ff3030",
+  "theme": "light",
+  "update_manifest_url": "https://api.github.com/repos/gama76/screencapture-Gams/releases/latest",
+  "installed_release_version": "0.19.0",
+  "ignored_update_version": ""
+}

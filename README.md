@@ -12,12 +12,13 @@ Application Windows avec interface graphique pour capturer, organiser et annoter
 - Couleur configurable pour le rectangle de selection de zone
 - Theme clair ou sombre, sauvegarde automatiquement
 - Barre de titre Windows et menu integre harmonises avec le theme
+- Interface plus compacte en v0.19.0: boutons reduits, historique moins large, actions mieux groupees
 - Historique automatique des images du dossier
 - Apercu des images
 - Copie d'une image dans le presse-papiers Windows
 - Suppression d'une image depuis l'historique avec confirmation
 - Renommage d'une image depuis l'historique
-- Edition: dessin, cadres colores, floutage de zone, recadrage, rotation, miroir, niveaux de gris
+- Edition: dessin, cadres colores, floutage de zone, etiquette zoomee, recadrage, rotation, miroir, niveaux de gris
 - Annulation dans l'editeur avec `Ctrl+Z`
 - Logos d'annotation: numero, warning, interdit, info, valide
 - Logos rendus avec anti-aliasing pour des bords plus propres
@@ -28,7 +29,7 @@ Application Windows avec interface graphique pour capturer, organiser et annoter
 Version compilee actuelle:
 
 ```powershell
-.\dist\GestionnaireScreenshots_v18_1\GestionnaireScreenshots_v18_1.exe
+.\dist\GestionnaireScreenshots_v19\GestionnaireScreenshots_v19.exe
 ```
 
 Lanceur recommande:
@@ -91,6 +92,7 @@ Outils disponibles:
 - `Dessin`: tracer librement sur l'image
 - `Cadre`: tirer un rectangle colore
 - `Flouter`: tirer un rectangle sur une zone a flouter
+- `Zoom`: tirer un rectangle pour ajouter une etiquette agrandie de la zone selectionnee
 - `Recadrer`: selectionner une zone a conserver
 - `Couleur`: choisir la couleur des annotations
 - `Trait`: epaisseur du dessin ou du cadre
